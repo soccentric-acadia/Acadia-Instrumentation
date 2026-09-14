@@ -344,6 +344,13 @@ class NativePlatform : public IPlatform
     /// @param d Device to enrich with SMART/NVMe health.
     void read_smart(StorageDevice* d);
 
+    /// @brief Sysfs export number for a logical GPIO line (chip base + offset).
+    ///
+    /// /sys/class/gpio is addressed by the global pin number, which on the
+    /// Raspberry Pi 5 (RP1) is not the line number itself on every kernel.
+    /// @param line Logical GPIO line.
+    /// @return The number to write to /sys/class/gpio/export.
+    int sysfs_gpio_number(int line);
     /// @brief Read a file under the sysroot.
     /// @param path File to read under the sysroot.
     /// @return File contents, or an error.

@@ -43,7 +43,6 @@ because it is what turns nine daemons into an N×N mesh across nine platforms.
 | `descriptors/` | Per-board `devices` / `capabilities` / `resource-profile` YAML. Data, never code. |
 | `schemas/` | JSON Schema for every config format; validated at load. |
 | `system/` | systemd units, sysusers.d, tmpfiles.d, udev rules, and the default YAML set that seeds `/pst`. |
-| `yocto/` | The `instrumentation` Yocto layer (`conf/layer.conf` plus the recipe). |
 | `test/` | unit, contract, integration, fault-injection, secret-leak. Plus `tsan.supp`. |
 | `docker/` | The aarch64 build container — the **release** target, not the gate. |
 
@@ -74,8 +73,10 @@ release and CI target (it is qemu-emulated on an x86_64 host). See README "Build
 
 ## Relationships
 
-* **Arches-OS** — ships this repo as the `instrumentation` Yocto layer. The layer is real, but
-  `kas/common.yaml` does not include it yet (`Task.md` D-08), so it is in no image today.
+* **Acadia-OS** — ships this repo into the device image through the `instrumentation` recipe in
+  meta-acadia (`recipes-instrumentation/instrumentation/instrumentation.bb`), installed by
+  `acadia-image.bb`. There is no bitbake layer inside this repo: the OS layer owns image
+  integration, the recipe only fetches, builds and installs.
 * **Arches-HAL / Client / Server** — colocated *applications*, not peers. They reach istate
   through `ApplicationApi` by joining the `instr-apps` group. No proto is shared.
 * **Arches-HQ** — the intended northbound peer. Both ends are implemented and mutually

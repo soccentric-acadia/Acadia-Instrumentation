@@ -33,6 +33,7 @@
 #include <fcntl.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
+#include <linux/watchdog.h>
 #include <net/if.h>
 #include <sys/socket.h>
 #include <sys/statvfs.h>
@@ -428,16 +429,28 @@ Error NativePlatform::watchdog_set_timeout_s(int seconds)
 {
     int fd = ::open((sysroot_ + "/dev/watchdog").c_str(), O_WRONLY);
     if (fd < 0) return Error::make(Errc::Io, "cannot open /dev/watchdog", "watchdog");
-    if (::ioctl(fd, 0x5706 /*WDIOC_SETTIMEOUT unsupported fallback*/, 0) == -1)
+    // BCM2712/RPi5 (bcm2835_wdt) tops out at 15 s per hardware cycle; kernels
+    // that predate the watchdog-core max-heartbeat handling expose that limit
+    // as max_timeout. Clamp to it so the request becomes a working, shorter
+    // timeout instead of a rejected one (istate pets every 200 ms loop tick,
+    // so a shorter window is safe there).
+    auto max_timeout = read_file("/sys/class/watchdog/watchdog0/max_timeout");
+    if (max_timeout.ok())
     {
-        // Write timeout as text where the driver supports it; ignore failure of
-        // the ioctl above and rely on the timeout= module parameter convention.
+        try
+        {
+            int max_s = std::stoi(*max_timeout);
+            if (max_s > 0 && seconds > max_s) seconds = max_s;
+        }
+        catch (...)
+        {
+        }
     }
-    std::string t = std::to_string(seconds) + "\n";
-    // A (void) cast does not silence warn_unused_result; check it properly.
-    // A failed timeout write is not fatal — the watchdog keeps its default —
-    // but it is worth not pretending we set it.
-    if (::write(fd, t.data(), t.size()) < 0)
+    // The timeout is configured through WDIOC_SETTIMEOUT only. Writing text
+    // to the device just pets it, so the previous ASCII write never set
+    // anything — the watchdog silently kept its driver default.
+    int requested = seconds;
+    if (::ioctl(fd, WDIOC_SETTIMEOUT, &requested) < 0)
     {
         ::close(fd);
         return Error::make(Errc::Io, "cannot set watchdog timeout", "watchdog");
@@ -683,17 +696,64 @@ Error NativePlatform::write_boot_file(const std::string& rel, const std::string&
     return Error::none();
 }
 
+/// @brief Sysfs export number for a logical GPIO line (chip base + offset).
+///
+/// The legacy /sys/class/gpio interface addresses pins by their *global*
+/// number: gpiochip base + line offset. On the Raspberry Pi 5 the RP1 GPIO
+/// controller does not always own base 0 — on RPi kernels before the
+/// gpiochip0 alias landed (6.6.45) the sysfs base is dynamic (571 on a
+/// 6.6.31 Raspberry Pi OS kernel), and on mainline it is dynamic as well —
+/// so exporting the raw line number fails with EINVAL. Boards whose
+/// controller owns base 0 are unaffected: the scan resolves to the identity.
+/// @param line Logical GPIO line.
+/// @return The number to write to /sys/class/gpio/export.
+int NativePlatform::sysfs_gpio_number(int line)
+{
+    if (line < 0) return line;
+    for (const auto& entry : list_dir("/sys/class/gpio"))
+    {
+        if (entry.rfind("gpiochip", 0) != 0) continue;
+        int base = 0;
+        try
+        {
+            base = std::stoi(entry.substr(8));
+        }
+        catch (...)
+        {
+            continue;
+        }
+        auto count = read_file("/sys/class/gpio/" + entry + "/ngpio");
+        if (!count.ok()) continue;
+        int ngpio = 0;
+        try
+        {
+            ngpio = std::stoi(*count);
+        }
+        catch (...)
+        {
+            continue;
+        }
+        // Kernel gpiochip bases never overlap, so the first chip whose window
+        // contains the line is the right one.
+        if (line >= base && line < base + ngpio) return base + line;
+    }
+    // No sysfs chip claims this line (or the interface is absent): keep the
+    // raw number, the previous behaviour.
+    return line;
+}
+
 /// @brief Drive a GPIO line (Hardware daemon only, R7).
 /// @param line GPIO line number.
 /// @param value Value to drive.
 Error NativePlatform::gpio_set(int line, bool value)
 {
-    std::string dir = "/sys/class/gpio/gpio" + std::to_string(line);
+    const int global = sysfs_gpio_number(line);
+    std::string dir = "/sys/class/gpio/gpio" + std::to_string(global);
     if (!read_file(dir + "/value").ok())
     {
         FILE* ex = std::fopen((sysroot_ + "/sys/class/gpio/export").c_str(), "w");
         if (!ex) return Error::make(Errc::Io, "gpio export failed", "gpio");
-        std::fprintf(ex, "%d\n", line);
+        std::fprintf(ex, "%d\n", global);
         std::fclose(ex);
     }
     FILE* f = std::fopen((sysroot_ + dir + "/value").c_str(), "w");
@@ -708,7 +768,7 @@ Error NativePlatform::gpio_set(int line, bool value)
 /// @return The line state, or an error.
 Result<bool> NativePlatform::gpio_get(int line)
 {
-    auto v = read_file("/sys/class/gpio/gpio" + std::to_string(line) + "/value");
+    auto v = read_file("/sys/class/gpio/gpio" + std::to_string(sysfs_gpio_number(line)) + "/value");
     if (!v.ok()) return Result<bool>::fail(v.error.code, v.error.message, "gpio");
     try
     {

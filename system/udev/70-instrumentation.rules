@@ -1,6 +1,11 @@
 # Device access where the Hardware daemon requires it (REQ §13).
 # GPIO char devices
 KERNEL=="gpiochip*", SUBSYSTEM=="gpio", GROUP="gpio", MODE="0660"
+# Exported GPIO pins (sysfs): the Hardware daemon runs unprivileged, so the
+# export/unexport attributes and the per-pin value files it writes must be
+# group-accessible. This mirrors the Raspberry Pi OS 99-com.rules treatment
+# of the gpio subsystem; the gpio group is created by instrumentation.bb.
+SUBSYSTEM=="gpio", ACTION!="remove", PROGRAM="/bin/sh -c 'chgrp -R gpio /sys/class/gpio && chmod -R g=u /sys/class/gpio'"
 # LEDs
 SUBSYSTEM=="leds", GROUP="instr-hardware", MODE="0660"
 # CAN interfaces

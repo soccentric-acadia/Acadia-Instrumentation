@@ -1,8 +1,9 @@
 # Arches-Instrumentation
 
-On-device management and observability for the Jetson: the **istate** hub plus nine spokes
+On-device management and observability for the fleet: the **istate** hub plus nine spokes
 (networkd, monitord, hardware, faults, alarms, logmanager, telemetry, ota, backup). Ships into
-Arches-OS as its own Yocto layer (`yocto/`, layer name `instrumentation`). `REQ.md` is the
+Acadia-OS through the `instrumentation` recipe in meta-acadia (`recipes-instrumentation/`);
+this repo carries no bitbake files of its own. `REQ.md` is the
 specification and its R-numbers are cited throughout this file — read it before changing
 architecture.
 

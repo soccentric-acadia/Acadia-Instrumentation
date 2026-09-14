@@ -128,9 +128,12 @@ if(NOT GCOVR_BIN AND COVERAGE)
     "not execute. Install gcovr or configure without COVERAGE.")
 endif()
 if(GCOVR_BIN)
+  # The regex's trailing $ is escaped: an unescaped $ reaches build.ninja
+  # verbatim and Ninja rejects the whole file with "bad $-escape", which
+  # blocks every target in the tree, not just coverage.
   add_custom_target(coverage
     COMMAND ${GCOVR_BIN} --root ${CMAKE_SOURCE_DIR}
-            --filter '.*\\.cpp$' --xml -o ${CMAKE_BINARY_DIR}/coverage.xml
+            --filter '.*\\.cpp$$' --xml -o ${CMAKE_BINARY_DIR}/coverage.xml
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Coverage report (gate enforced in Jenkins)")
 endif()

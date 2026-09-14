@@ -33,7 +33,6 @@ instrumentation/
   system/       systemd units, sysusers.d, tmpfiles.d, udev, default YAML set
   test/         unit, contract, integration harness, fault injection,
                 secret-leak
-  yocto/        bitbake recipe (installs; carries no system files of its own)
   docker/       arm64 (Jetson/aarch64) build container + its Makefile
   docs/         generated interface reference (docgen.py, cannot drift)
 ```
@@ -294,13 +293,14 @@ cmake --build --preset host-debug --target check-format  # manual equivalent
 
 ## Deploy
 
-The repo ships everything the image needs; the Yocto recipe only builds and
-installs:
+The repo ships everything the image needs — code, systemd units, sysusers,
+tmpfiles, udev rules, descriptors, default YAML set. The bitbake recipe that
+builds and installs it lives **in the OS layer**, not here, so this repo has
+nothing to add to `bblayers.conf`:
 
 ```bash
-# in your Yocto layer's bblayers.conf:
-BBLAYERS += "/path/to/instrumentation/yocto"
-# in your image recipe:
+# recipe:   Acadia-OS/meta/meta-acadia/recipes-instrumentation/instrumentation/instrumentation.bb
+# image:    acadia-image.bb installs it:
 IMAGE_INSTALL:append = " instrumentation"
 ```
 

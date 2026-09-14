@@ -100,9 +100,6 @@ instrumentation/
     fixtures/
     fault-injection/
 
-  yocto/
-    recipes-instrumentation/    bitbake recipe consuming this repo
-
   docs/                         generated interface reference
 
 Each daemon directory follows the same shape: src/, include/, test/, CMakeLists.txt. Each contains a thin main.cpp and a domain implementation that is testable without sockets or hardware.
@@ -419,7 +416,9 @@ sysusers.d — one system user per daemon.
 tmpfiles.d — /run/instrumentation with correct ownership and modes.
 udev rules where device access requires them.
 Default YAML set for seeding /pst.
-Yocto recipe in yocto/ that builds and installs this repo. The recipe installs; it does not carry system files of its own.
+Yocto recipe in the OS layer's meta-acadia layer (Acadia-OS,
+recipes-instrumentation/instrumentation/instrumentation.bb) that builds and installs this repo.
+The recipe installs; it does not carry system files of its own.
 
 14. Build and quality standards
 C++17, no exceptions across ABI boundaries, RAII throughout, no raw owning pointers.
@@ -440,7 +439,7 @@ Alarm catalog with the code generator, and the default fault rule set.
 Device descriptors and resource profiles.
 All system files — systemd, sysusers, tmpfiles, udev, defaults.
 The complete test suite: unit, contract, integration, fault injection.
-The Yocto recipe.
+The Yocto recipe — shipped in the meta-acadia layer (Acadia-OS), not in this repo.
 Generated interface documentation and a README covering build, deploy, and operate.
 Build it all. No stubs, no placeholders, no deferred functionality.
 

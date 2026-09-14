@@ -115,11 +115,15 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
     }
     else if (dev->kind == "led")
     {
+        // The sysfs LED name the board actually exposes (e.g. ACT on the
+        // Raspberry Pi 5) is descriptor data, like line for GPIO and port for
+        // USB; the device name is only the fallback.
+        const std::string led_name = dev->params.count("name") ? dev->params.at("name") : device;
         if (control_op == "led_set")
         {
             auto it = args.find("on");
             if (it == args.end()) return Error::make(Errc::InvalidArgument, "on required", device);
-            return plat_.led_set(device, it->second == "true" || it->second == "1");
+            return plat_.led_set(led_name, it->second == "true" || it->second == "1");
         }
         if (control_op == "led_blink")
         {
@@ -131,7 +135,7 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
             on = get("on_ms", on);
             off = get("off_ms", off);
             reps = get("repeats", reps);
-            return plat_.led_blink(device, on, off, reps);
+            return plat_.led_blink(led_name, on, off, reps);
         }
     }
     else if (dev->kind == "usb")
@@ -256,13 +260,17 @@ CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev, const plat
     }
     if (chk.op == "led_blink_ack")
     {
-        Error e = plat_.led_blink(dev.name, 30, 30, 1);
+        // Same name resolution as the control path: the sysfs LED name comes
+        // from the descriptor, and the simulated platform keys its blink-ack
+        // record on the name it was actually given.
+        const std::string led_name = dev.params.count("name") ? dev.params.at("name") : dev.name;
+        Error e = plat_.led_blink(led_name, 30, 30, 1);
         if (!e.ok()) return make_result(dev.name, chk.name, CheckState::Fail, e.message, started);
         // Blink request acknowledged when the platform records it.
         auto* sim = dynamic_cast<platform::SimulatedPlatform*>(&plat_);
         if (sim)
         {
-            bool ack = sim->led_state().count(dev.name + ":blink-ack") && sim->led_state().at(dev.name + ":blink-ack");
+            bool ack = sim->led_state().count(led_name + ":blink-ack") && sim->led_state().at(led_name + ":blink-ack");
             return make_result(dev.name, chk.name, ack ? CheckState::Pass : CheckState::Degraded, ack ? "blink acknowledged" : "no blink ack", started);
         }
         return make_result(dev.name, chk.name, CheckState::Pass, "blink issued", started);

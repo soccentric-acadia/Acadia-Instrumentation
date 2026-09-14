@@ -1,11 +1,20 @@
 board: rpi-5
 devices:
+  # The Pi 5 exposes its activity LED as /sys/class/leds/ACT (gpio-leds in
+  # bcm2712-rpi-5-b.dts). The LED's sysfs name is board data, so it rides in
+  # params like line for GPIO and port for USB; the device name stays the
+  # fleet-standard handle the ctrl surface talks to.
   - name: status-led
     kind: led
+    params:
+      name: ACT
     controls: [led_set, led_blink]
     checks:
       - name: blink-ack
         op: led_blink_ack
+  # GPIO17 (pin 11) on the 40-pin header. The platform layer translates the
+  # logical line to the sysfs export number, which on the RP1 controller is
+  # not the line itself on every kernel (see NativePlatform::sysfs_gpio_number).
   - name: gpio-user
     kind: gpio
     params:
