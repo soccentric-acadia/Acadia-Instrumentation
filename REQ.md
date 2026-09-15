@@ -422,7 +422,7 @@ The recipe installs; it does not carry system files of its own.
 
 14. Build and quality standards
 C++17, no exceptions across ABI boundaries, RAII throughout, no raw owning pointers.
-CMake with presets; cross-compilation for all nine targets; static analysis (clang-tidy) and sanitizers (ASan, UBSan, TSan) in CI.
+CMake with presets, host-native only; static analysis (clang-tidy) and sanitizers (ASan, UBSan, TSan) in CI.
 One version for the whole suite, from VERSION.
 Generated documentation — the interface reference is generated from the .proto and YAML schemas so it cannot drift.
 Consistent error handling; no silent failures anywhere. Every rejected input produces a diagnosable message.
