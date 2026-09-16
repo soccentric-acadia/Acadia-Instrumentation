@@ -44,7 +44,6 @@ because it is what turns nine daemons into an N×N mesh across nine platforms.
 | `schemas/` | JSON Schema for every config format; validated at load. |
 | `system/` | systemd units, sysusers.d, tmpfiles.d, udev rules, and the default YAML set that seeds `/pst`. |
 | `test/` | unit, contract, integration, fault-injection, secret-leak. Plus `tsan.supp`. |
-| `docker/` | The aarch64 build container — the **release** target, not the gate. |
 
 ## Contracts that are locked
 
@@ -59,8 +58,9 @@ because it is what turns nine daemons into an N×N mesh across nine platforms.
 
 ## Build and validate
 
-Host-native is the gate and the default developer workflow; the aarch64 container is the
-release and CI target (it is qemu-emulated on an x86_64 host). See README "Build".
+The build is arch-independent and runs natively anywhere (x86_64, aarch64/Jetson,
+armv7, riscv): there is no cross toolchain or container build in this repo — one
+CMake project, one configure line, any host with a C++17 toolchain.
 
 ```bash
 ./.claude/validate.sh quick   # format, configure, compile — seconds

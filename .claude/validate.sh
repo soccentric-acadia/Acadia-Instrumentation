@@ -7,15 +7,13 @@
 #
 # WHICH BUILD THIS GATE USES, AND WHY (Task.md A-03)
 #
-# Host-native, not the aarch64 container. The container is the release and CI
-# target -- it proves the code is correct *for the device* -- but on an x86_64
-# host it runs under qemu, and the repo's own README notes clang-tidy is "slow
-# under qemu". A gate that is slow does not get run on every change, and a gate
-# that is not run is not a gate. Host-native configures, builds and runs all
-# 321 tests in seconds.
-#
-# The container build is still required before a release; it is simply not what
-# gates an edit. See README "Build".
+# Host-native, on whatever machine this checkout is on. The build carries no
+# -march/-mtune or other arch-specific flags and no cross toolchain: the same
+# configure line produces a working tree on x86_64, aarch64 (Jetson), armv7,
+# riscv — anywhere with a C++17 toolchain, CMake, protoc and gRPC. That is
+# also why the gate stays out of containers: a gate that needs qemu is slow,
+# and a gate that is slow does not get run on every change. Host-native
+# configures, builds and runs all 321 tests in seconds.
 #
 # On the exit contract: this repo's Makefile drives Docker, and Docker being
 # absent is exactly the "check could not run" case that must report 77 rather
@@ -28,7 +26,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/validate-lib.sh"
 TIER="$(tier_or_die "${1:-quick}")"
 
 # The gate builds into its own directory so it never fights a developer's
-# build-host-debug/ tree or the container's build-aarch64/.
+# build-host-debug/ tree.
 PRESET_DIR="build-gate"
 
 # --- quick -----------------------------------------------------------------
@@ -43,10 +41,9 @@ assert "board descriptors present" 'test -d descriptors'
 check "cmake configure parses" "cmake" \
   "cmake -S . -B $PRESET_DIR -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON >/dev/null"
 
-# check-format, not `make check-format`: the make target shells into the arm64
-# container, which is minutes under qemu for a check that takes under a second
-# natively. Same .clang-format, same file set (the cmake target globs lib/,
-# daemons/, tools/, test/, catalog/).
+# check-format, not `make check-format`: this runs the same .clang-format
+# over the same file set (the cmake target globs lib/, daemons/, tools/, test/,
+# catalog/) without a redundant reconfigure first.
 check "clang-format clean" "cmake clang-format" \
   "cmake --build $PRESET_DIR --target check-format"
 

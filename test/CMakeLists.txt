@@ -3,46 +3,65 @@
 find_package(GTest REQUIRED)
 include(GoogleTest)
 
+# Cross-compiling (Yocto): gtest_discover_tests() runs the test binary at
+# BUILD time to enumerate the tests, and a target-arch binary cannot run on
+# the build host. PRE_TEST defers discovery to ctest time (it still runs the
+# binary on the target, which is the only place it can run). Host builds keep
+# the default POST_BUILD mode. All suites go through the wrapper below.
+function(instr_gtest_discover target)
+  if(CMAKE_CROSSCOMPILING)
+    gtest_discover_tests(${target} DISCOVERY_MODE PRE_TEST)
+  else()
+    gtest_discover_tests(${target})
+  endif()
+endfunction()
+
+# Prefer the imported targets (find_package(GTest) CONFIG/module mode both
+# provide them); fall back to bare library names for pkg-config-only systems
+# (older Yocto, sysroot installs) where no CMake config ships. pthread comes
+# in as Threads::Threads — never hardcode -lpthread: it breaks on toolchains
+# where the symbols already live in libc and on those where they don't.
 if(TARGET GTest::gtest AND TARGET GTest::gtest_main)
   link_libraries(GTest::gtest GTest::gtest_main)
 else()
-  link_libraries(gtest gtest_main pthread)
+  link_libraries(gtest gtest_main)
 endif()
+link_libraries(Threads::Threads)
 
 # ---- lib/common ----
 add_executable(unit_common unit/test_common.cpp)
 target_link_libraries(unit_common PRIVATE instr_common)
-gtest_discover_tests(unit_common)
+instr_gtest_discover(unit_common)
 
 add_executable(unit_json_schema unit/test_json_schema.cpp)
 target_link_libraries(unit_json_schema PRIVATE instr_common)
-gtest_discover_tests(unit_json_schema)
+instr_gtest_discover(unit_json_schema)
 
 add_executable(unit_command_table unit/test_command_table.cpp)
 target_link_libraries(unit_command_table PRIVATE instr_common)
-gtest_discover_tests(unit_command_table)
+instr_gtest_discover(unit_command_table)
 
 add_executable(unit_filesystem unit/test_filesystem.cpp)
 target_link_libraries(unit_filesystem PRIVATE instr_common instr_ctrl)
-gtest_discover_tests(unit_filesystem)
+instr_gtest_discover(unit_filesystem)
 
 add_executable(unit_default_configs unit/test_default_configs.cpp)
 target_link_libraries(unit_default_configs PRIVATE instr_common)
 target_compile_definitions(unit_default_configs PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
-gtest_discover_tests(unit_default_configs)
+instr_gtest_discover(unit_default_configs)
 
 add_executable(unit_system_files unit/test_system_files.cpp)
 target_link_libraries(unit_system_files PRIVATE instr_istate_lib)
 target_compile_definitions(unit_system_files PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
-gtest_discover_tests(unit_system_files)
+instr_gtest_discover(unit_system_files)
 
 add_executable(unit_platform unit/test_platform.cpp)
 target_link_libraries(unit_platform PRIVATE instr_platform)
-gtest_discover_tests(unit_platform)
+instr_gtest_discover(unit_platform)
 
 add_executable(unit_catalog unit/test_catalog_codegen.cpp)
 target_link_libraries(unit_catalog PRIVATE instr_alarm_codegen)
-gtest_discover_tests(unit_catalog)
+instr_gtest_discover(unit_catalog)
 
 # ---- per-daemon domain tests ----
 foreach(d monitord networkd hardware faults alarms logmanager telemetry ota backup)
@@ -52,7 +71,7 @@ foreach(d monitord networkd hardware faults alarms logmanager telemetry ota back
   # manufacturing identity — so parsers are tested against what devices
   # actually produce.
   target_compile_definitions(unit_${d} PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
-  gtest_discover_tests(unit_${d})
+  instr_gtest_discover(unit_${d})
 endforeach()
 
 # ---- istate domain tests ----
@@ -62,14 +81,14 @@ foreach(t pst provisioning orchestrator northbound config)
   add_executable(unit_istate_${t} ../daemons/istate/test/test_${t}.cpp)
   target_link_libraries(unit_istate_${t} PRIVATE instr_istate_lib)
   target_compile_definitions(unit_istate_${t} PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
-  gtest_discover_tests(unit_istate_${t})
+  instr_gtest_discover(unit_istate_${t})
 endforeach()
 
 # ---- contract tests (§12): breaking .proto change fails CI ----
 add_executable(contract_protos contract/contract_tests.cpp)
 add_dependencies(contract_protos protos_golden)
 target_link_libraries(contract_protos PRIVATE instr_common instr_istate_lib instr_protos)
-gtest_discover_tests(contract_protos)
+instr_gtest_discover(contract_protos)
 
 # ---- integration harness: hub + nine spokes + simulated platform on a
 # build host with no hardware (§12) ----
@@ -78,7 +97,7 @@ target_link_libraries(integration_harness PRIVATE
   instr_istate_lib instr_monitord_lib instr_networkd_lib instr_hardware_lib
   instr_faults_lib instr_alarms_lib instr_logmanager_lib instr_telemetry_lib
   instr_ota_lib instr_backup_lib)
-gtest_discover_tests(integration_harness)
+instr_gtest_discover(integration_harness)
 
 # ---- the real topology: hub + spokes over gRPC/UDS on the simulated
 # platform (§12: "the full topology must be testable on a laptop") ----
@@ -87,26 +106,26 @@ target_link_libraries(integration_topology PRIVATE
   instr_istate_lib instr_monitord_lib instr_networkd_lib instr_hardware_lib
   instr_faults_lib instr_alarms_lib instr_logmanager_lib instr_telemetry_lib
   instr_ota_lib instr_backup_lib)
-gtest_discover_tests(integration_topology)
+instr_gtest_discover(integration_topology)
 
 # ---- colocated applications (R5, §7.6, §7.8, §6.2): the app-facing surface
 # driven over a real socket against a live hub with alarms + telemetry ----
 add_executable(integration_application integration/application.cpp)
 target_link_libraries(integration_application PRIVATE
   instr_istate_lib instr_alarms_lib instr_telemetry_lib)
-gtest_discover_tests(integration_application)
+instr_gtest_discover(integration_application)
 
 # ---- fault injection (§12): storage errors, link loss, hangs, corrupt
 # /pst, full disk, clock jumps, proto mismatch ----
 add_executable(fault_injection fault-injection/fault_tests.cpp)
 target_link_libraries(fault_injection PRIVATE
   instr_istate_lib instr_monitord_lib instr_telemetry_lib instr_networkd_lib)
-gtest_discover_tests(fault_injection)
+instr_gtest_discover(fault_injection)
 
 # ---- secret-leak test (§12): credentials never in logs, backups, telemetry ----
 add_executable(secret_leak_test secret-leak/secret_leak_test.cpp)
 target_link_libraries(secret_leak_test PRIVATE instr_common instr_backup_lib instr_logmanager_lib instr_telemetry_lib)
-gtest_discover_tests(secret_leak_test)
+instr_gtest_discover(secret_leak_test)
 
 # ---- ctrl surface: every daemon's operations reachable from its tool ----
 add_executable(unit_ctrl_surface unit/test_ctrl_surface.cpp)
@@ -114,7 +133,7 @@ target_link_libraries(unit_ctrl_surface PRIVATE
   instr_istate_lib instr_monitord_lib instr_networkd_lib instr_hardware_lib
   instr_faults_lib instr_alarms_lib instr_logmanager_lib instr_telemetry_lib
   instr_ota_lib instr_backup_lib instr_ctrl)
-gtest_discover_tests(unit_ctrl_surface)
+instr_gtest_discover(unit_ctrl_surface)
 
 # ---- coverage gate inputs (Jenkins parses ctest; coverage via gcovr) ----
 # The gate is a hard requirement (§12), so a missing gcovr must fail the
@@ -143,7 +162,7 @@ set(PROTO_DESC "${CMAKE_BINARY_DIR}/contract/protos.pb")
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/contract")
 add_custom_command(
   OUTPUT "${PROTO_DESC}"
-  COMMAND protobuf::protoc ARGS "-I${CMAKE_SOURCE_DIR}/proto"
+  COMMAND ${PROTOC_CMD} ARGS "-I${CMAKE_SOURCE_DIR}/proto"
           "--descriptor_set_out=${PROTO_DESC}" ${PROTO_FILES_ALL}
   DEPENDS ${PROTO_FILES_ALL}
   COMMENT "Contract: building proto descriptor set")

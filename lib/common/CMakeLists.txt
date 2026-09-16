@@ -15,7 +15,11 @@ add_library(instr_common STATIC
   src/signature.cpp
 )
 target_include_directories(instr_common PUBLIC include)
-target_link_libraries(instr_common PUBLIC yaml-cpp)
+# Threads::Threads is the portable way to get pthreads: glibc >= 2.34 has the
+# symbols in libc, older toolchains (JetPack/L4T aarch64, older Yocto) keep
+# them in libpthread. Every lib, daemon, tool and test links instr_common
+# transitively, so this one line covers the whole tree.
+target_link_libraries(instr_common PUBLIC yaml-cpp Threads::Threads)
 
 # Signature verification (REQ §9, §7.9) delegates to libcrypto: it is the one
 # place where a subtle bug is silently exploitable, so it uses a reviewed
@@ -32,7 +36,7 @@ else()
     "pushes and signed OTA artifacts will be REFUSED on this build (fail closed).")
 endif()
 target_compile_features(instr_common PUBLIC cxx_std_17)
-# Warnings as errors: consistent, diagnosable code across the suite.
-if(NOT MSVC)
+# Warning flags: GNU/Clang only, same guard as the top level.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(instr_common PRIVATE -Wall -Wextra -Wshadow)
 endif()

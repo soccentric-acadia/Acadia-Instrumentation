@@ -258,7 +258,10 @@ CpuSnapshot NativePlatform::cpu_snapshot()
     std::string line;
     while (std::getline(ss, line))
     {
-        if (line.rfind("cpu", 0) == 0 && line.size() > 3 && isdigit(line[3]))
+        // Cast to unsigned char: plain char is signed on x86 and unsigned on
+        // ARM — passing a negative value to isdigit() is undefined behaviour,
+        // and /proc/stat can contain bytes a naive cast would make negative.
+        if (line.rfind("cpu", 0) == 0 && line.size() > 3 && std::isdigit(static_cast<unsigned char>(line[3])))
         {
             std::istringstream ls(line.substr(4));
             uint64_t user = 0, nice = 0, sys = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0;

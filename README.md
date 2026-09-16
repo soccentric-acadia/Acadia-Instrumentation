@@ -239,10 +239,14 @@ daemons start early so boot-window anomalies are captured.
 
 ## Build
 
-**Host-native is the only build you need day to day.** It needs nothing but
-a C++17 toolchain, CMake, and protoc/grpc on the host — no Docker, no
-cross-compiler, no emulation. It's what `.claude/validate.sh` runs, and it's
-fast enough to run on every change:
+**One native build, on any architecture.** The tree carries no `-march`/`-mtune`
+flags, no inline asm, no `#ifdef __x86_64__`-style branches, and no cross
+compiler or container: the same configure line works on x86_64, aarch64
+(Jetson), armv7, riscv — anywhere with a C++17 toolchain, CMake, and
+protoc/grpc on the host. Threads and gTest are linked portably
+(`Threads::Threads`, imported targets), so older toolchains (pre-2.34 glibc,
+e.g. JetPack/L4T) link cleanly too. It's what `.claude/validate.sh` runs, and
+it's fast enough to run on every change:
 
 ```bash
 make build   # cmake --preset host-debug && cmake --build --preset host-debug
@@ -256,7 +260,7 @@ rationale in that file); `make tidy` runs clang-tidy. All four use the
 preset in `CMakePresets.json`, e.g. `asan`, `tsan`, `coverage`) to use a
 different one.
 
-That's the whole workflow: there is no cross-compilation or container build in this repo.
+That's the whole workflow: one CMake project that compiles natively wherever you point it.
 
 ## Deploy
 

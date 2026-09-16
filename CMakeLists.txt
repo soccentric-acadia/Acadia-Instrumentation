@@ -16,7 +16,21 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-add_compile_options(-Wall -Wextra -Wshadow)
+# Warning flags are GNU/Clang-only: they are not part of any standard and
+# other compilers must not choke on them. This tree carries no -march/-mtune
+# or any other arch-specific flag on purpose — the same build works on x86_64,
+# aarch64, armv7, riscv, whatever the host is.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_compile_options(-Wall -Wextra -Wshadow)
+endif()
+
+# ---- threads (mandatory) ----
+# lib/ and daemons/ use std::thread/std::mutex/std::atomic throughout. On
+# glibc >= 2.34 pthread symbols live in libc and code links "by accident";
+# on older toolchains (JetPack/L4T aarch64, pre-2.34 Yocto, Debian 10) they
+# live in libpthread and every link fails without Threads::Threads. Link it
+# explicitly through instr_common so every target inherits it.
+find_package(Threads REQUIRED)
 
 # ---- dependencies ----
 find_package(Protobuf REQUIRED)
@@ -32,9 +46,8 @@ endif()
 find_package(yaml-cpp REQUIRED)
 find_package(GTest QUIET)
 
-SET (MAINFOLDER ${PROJECT_SOURCE_DIR}/output_dir)
-SET (EXECUTABLE_OUTPUT_PATH "${MAINFOLDER}/bin")
-SET (LIBRARY_OUTPUT_PATH "${MAINFOLDER}/lib")
+# No EXECUTABLE_OUTPUT_PATH/LIBRARY_OUTPUT_PATH here: those are deprecated and
+# would scatter binaries into the source tree instead of the build dir.
 
 # ---- proto generation (R3: one IDL, one generator) ----
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/proto")
@@ -56,7 +69,24 @@ set(PROTO_HDRS)
 if(TARGET gRPC::grpc_cpp_plugin)
   get_target_property(GRPC_PLUGIN gRPC::grpc_cpp_plugin LOCATION)
 else()
-  find_program(GRPC_PLUGIN grpc_cpp_plugin REQUIRED)
+  # find_program's REQUIRED keyword needs CMake >= 3.18 while this project
+  # declares 3.16 — do the check by hand so older CMake configures too.
+  find_program(GRPC_PLUGIN grpc_cpp_plugin)
+  if(NOT GRPC_PLUGIN)
+    message(FATAL_ERROR "grpc_cpp_plugin not found: install the gRPC development package.")
+  endif()
+endif()
+# protoc: the protobuf::protoc imported target exists in both CONFIG mode and
+# the FindProtobuf module (CMake >= 3.10). Fall back to a PATH lookup for
+# setups where neither surfaces the compiler.
+if(TARGET protobuf::protoc)
+  set(PROTOC_CMD protobuf::protoc)
+else()
+  find_program(PROTOC_EXECUTABLE protoc)
+  if(NOT PROTOC_EXECUTABLE)
+    message(FATAL_ERROR "protoc not found: install the protobuf compiler.")
+  endif()
+  set(PROTOC_CMD "${PROTOC_EXECUTABLE}")
 endif()
 foreach(P common istate networkd monitord hardware faults alarms logmanager telemetry ota backup)
   list(APPEND PROTO_SRCS "${PROTO_GEN}/${P}.pb.cc" "${PROTO_GEN}/${P}.grpc.pb.cc")
@@ -64,7 +94,7 @@ foreach(P common istate networkd monitord hardware faults alarms logmanager tele
   add_custom_command(
     OUTPUT "${PROTO_GEN}/${P}.pb.cc" "${PROTO_GEN}/${P}.pb.h"
            "${PROTO_GEN}/${P}.grpc.pb.cc" "${PROTO_GEN}/${P}.grpc.pb.h"
-    COMMAND protobuf::protoc
+    COMMAND ${PROTOC_CMD}
     ARGS "--cpp_out=${PROTO_GEN}"
          "--grpc_out=${PROTO_GEN}"
          "--plugin=protoc-gen-grpc=${GRPC_PLUGIN}"
@@ -101,7 +131,9 @@ else()
   target_link_libraries(instr_protos PUBLIC ${GRPCPP_LIBRARIES})
   target_include_directories(instr_protos SYSTEM PUBLIC ${GRPCPP_INCLUDE_DIRS})
 endif()
-target_compile_options(instr_protos PRIVATE -w)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(instr_protos PRIVATE -w)
+endif()
 
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated")
 
@@ -230,7 +262,16 @@ install(FILES
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/instrumentation")
 
 # ---- tests (§12) ----
-enable_testing()
+# Gated on BUILD_TESTING so a consumer that explicitly opts out (the Yocto
+# recipe passes -DBUILD_TESTING=OFF: the daemons under test cannot be exercised
+# on the build host, and googletest is not part of the target sysroot) skips
+# the whole suite instead of just hoping the flag would do something.
+include(CTest)
+if(BUILD_TESTING)
+  enable_testing()
+endif()
 # ---- docs (§14: generated so it cannot drift) ----
 add_subdirectory(docs)
-add_subdirectory(test)
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
