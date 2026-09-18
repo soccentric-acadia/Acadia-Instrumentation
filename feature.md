@@ -164,8 +164,8 @@ deployment decision before code can safely land.
 | 146 | Tenant isolation integration test | API tests | N/A | N/A | Testing | Implemented |
 | 147 | Reboot/boot-ID integration test | Missing | Missing | Missing | Testing | Missing |
 | 148 | Fault/telemetry while command runs | Implemented test | Missing | Spoke streams | Testing | Partial |
-| 149 | Three-repo release gate | Separate gates | Separate gate | Separate gate | Release | Missing |
-| 150 | Rollback compatibility window | Missing | Missing | Missing | Release | Missing |
+| 149 | Three-repo release gate | Fleet gate includes all three | Fleet gate | Fleet gate | Release | Implemented |
+| 150 | Rollback compatibility window | Release manifest | Release manifest | Contract compatibility rules | Release | Partial |
 
 The matrix is deliberately evidence-oriented. A feature is not complete merely
 because a message, route, or unit test exists: the owner, transport, policy,
