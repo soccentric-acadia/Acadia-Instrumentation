@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-18 — Agent documentation and task workflow standardization
+
+- Added canonical `AGENTS.md` and `CLAUDE.md` pointers plus a concise canonical
+  agent document with CMake build and test instructions.
+- Added ignored local `Plan.md` and `Task.md` workflow artifacts.
+- Verified the required document shape and the declared `make build` and
+  `make test` targets.
+
 Maintained by the Loop Engine. One entry per loop that touched this repo,
 newest first, appended on loop close (pass or fail) and committed on the loop's
 own feature branch. See the master repo's `Arches-Loop-Orchestration-Spec-v2.md` §11.1.
