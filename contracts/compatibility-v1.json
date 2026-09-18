@@ -1,0 +1,39 @@
+{
+  "$schema": "./device-contract.schema.json",
+  "contract": "acadia-instrumentation-device",
+  "contract_version": 1,
+  "compatibility_rules": [
+    {
+      "artifact": "proto descriptor",
+      "identifier": "proto_schema_version",
+      "required": "3",
+      "compatible": "exact match",
+      "incompatible": "any other value; do not register"
+    },
+    {
+      "artifact": "proto descriptor",
+      "identifier": "sha256",
+      "required": "c3c11569f56c9b443834cada0f49b601a5ca2fad5d9c69fb3b08122bb3108f58",
+      "compatible": "exact match",
+      "incompatible": "different descriptor bytes"
+    },
+    {
+      "artifact": "alarm catalog",
+      "identifier": "revision",
+      "required": "1 or newer",
+      "compatible": "additive revisions only; existing ids and names retain meaning",
+      "incompatible": "reused id, renamed id, or changed field layout"
+    }
+  ],
+  "safe_changes": [
+    "add a protobuf field with a new field number",
+    "add an optional capability",
+    "add a new alarm id in a later catalog revision"
+  ],
+  "breaking_changes": [
+    "change or reuse a protobuf field number",
+    "change a field type or package/service name",
+    "change an existing alarm id, name, or packed id layout"
+  ],
+  "consumer_action": "Verify device-contract-v1.json and the descriptor hash before connecting; refuse mismatches without guessing."
+}

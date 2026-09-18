@@ -240,6 +240,9 @@ include(CMakePackageConfigHelpers)
 set(INSTR_PROTO_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/instrumentation/proto")
 install(DIRECTORY "${PROTO_DIR}/" DESTINATION "${INSTR_PROTO_INSTALL_DIR}"
         FILES_MATCHING PATTERN "*.proto")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/contracts/"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/instrumentation/contracts"
+        FILES_MATCHING PATTERN "*.json" PATTERN "*.pb" PATTERN "README.md")
 
 configure_package_config_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/instrumentationConfig.cmake.in"

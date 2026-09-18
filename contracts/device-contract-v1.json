@@ -1,0 +1,26 @@
+{
+  "$schema": "./device-contract.schema.json",
+  "contract": "acadia-instrumentation-device",
+  "contract_version": 1,
+  "suite_version": "1.0.0",
+  "proto_schema_version": 3,
+  "proto_descriptor": {
+    "path": "proto-schema-v3.pb",
+    "sha256": "c3c11569f56c9b443834cada0f49b601a5ca2fad5d9c69fb3b08122bb3108f58"
+  },
+  "alarm_catalog": {
+    "revision": 1,
+    "path": "../catalog/alarms.yaml",
+    "sha256": "5b35097111084f3c5f1e92640405fa467010c0fe3003d470a81864d2d8906706"
+  },
+  "compatibility": {
+    "registration": "exact-proto-schema-version",
+    "descriptor": "sha256-must-match-before-registration",
+    "catalog": "same-or-newer-revision; existing alarm ids and names are immutable"
+  },
+  "consumers": [
+    "Acadia-Configuration",
+    "Acadia-HQ",
+    "on-device applications"
+  ]
+}

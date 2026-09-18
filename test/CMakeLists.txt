@@ -168,4 +168,5 @@ add_custom_command(
   COMMENT "Contract: building proto descriptor set")
 add_custom_target(protos_golden DEPENDS "${PROTO_DESC}")
 target_compile_definitions(contract_protos PRIVATE PROTO_DESC_FILE="${PROTO_DESC}"
-                          GOLDEN_FILE="${CMAKE_SOURCE_DIR}/test/contract/protos.golden.sha256")
+                          GOLDEN_FILE="${CMAKE_SOURCE_DIR}/test/contract/protos.golden.sha256"
+                          CONTRACT_ROOT="${CMAKE_SOURCE_DIR}/contracts")

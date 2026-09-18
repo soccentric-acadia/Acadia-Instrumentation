@@ -36,6 +36,19 @@ instrumentation/
   docs/         generated interface reference (docgen.py, cannot drift)
 ```
 
+## Device contract artifacts
+
+Consumers that need to identify the device-facing contract should use
+[`contracts/device-contract-v1.json`](contracts/device-contract-v1.json).
+It pins the deployed proto schema version and descriptor SHA-256, and records
+the alarm-catalog revision and hash. The companion
+[`contracts/compatibility-v1.json`](contracts/compatibility-v1.json) defines
+which changes are safe to consume. Verify these artifacts before registration;
+do not infer compatibility from `VERSION` or silently accept a descriptor
+mismatch. The artifacts are published by Instrumentation only—coordinated
+changes to HQ or Configuration are still required to make their generated
+clients or copies consume a newer contract.
+
 ## Topology
 
 Everything below the `device` line runs on-box; HQ lives off-device behind

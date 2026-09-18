@@ -31,6 +31,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -69,10 +70,29 @@ TEST(ContractProtos, DescriptorHashMatchesGolden)
         out << computed << "\n";
         GTEST_SKIP() << "golden seeded; commit " << GOLDEN_FILE;
     }
+
     EXPECT_EQ(computed, golden) << "Proto definitions changed — this is a breaking wire contract change.\n"
                                 << "Update the golden deliberately: test/contract/protos.golden.sha256\n"
                                 << "(regenerate with: protoc --descriptor_set_out, then re-hash) and\n"
                                 << "bump transport::kProtoSchemaVersion if wire-incompatible.";
+}
+
+TEST(ContractArtifacts, PublishedMetadataMatchesDescriptor)
+{
+    const std::string root = CONTRACT_ROOT;
+    const std::string descriptor = slurp(root + "/proto-schema-v3.pb");
+    ASSERT_GT(descriptor.size(), 100u);
+    EXPECT_EQ(crypto::sha256(descriptor).hex(), "c3c11569f56c9b443834cada0f49b601a5ca2fad5d9c69fb3b08122bb3108f58");
+
+    const std::string metadata = slurp(root + "/device-contract-v1.json");
+    const std::string compatibility = slurp(root + "/compatibility-v1.json");
+    ASSERT_FALSE(metadata.empty());
+    ASSERT_FALSE(compatibility.empty());
+    EXPECT_NE(metadata.find("\"contract_version\": 1"), std::string::npos);
+    EXPECT_NE(metadata.find("\"proto_schema_version\": 3"), std::string::npos);
+    EXPECT_NE(metadata.find("5b35097111084f3c5f1e92640405fa467010c0fe3003d470a81864d2d8906706"), std::string::npos);
+    EXPECT_NE(compatibility.find("\"compatible\": \"exact match\""), std::string::npos);
+    EXPECT_NE(compatibility.find("\"breaking_changes\""), std::string::npos);
 }
 
 /// @brief The proto schema version is one shared constant every side checks (§3.1).
