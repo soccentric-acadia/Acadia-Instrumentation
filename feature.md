@@ -28,11 +28,11 @@ deployment decision before code can safely land.
 | 10 | Credential rotation | Implemented | Re-enrollment path | Key rotation RPC | Security | Partial |
 | 11 | Device-initiated connection | AgentLink server | AgentLink client | HqPeer client | Connectivity | Partial |
 | 12 | Shared device protocol source | HQ proto copy | Configuration proto copy | Separate istate proto | Contract owner | Missing |
-| 13 | Protocol version negotiation | Missing | Missing | Registration version | Compatibility | Missing |
+| 13 | Protocol version negotiation | Implemented | Implemented | Registration version | Compatibility | Partial |
 | 14 | Descriptor/hash negotiation | Missing | Missing | Descriptor artifacts | Compatibility | Missing |
 | 15 | Capability negotiation | Device model partial | Board manifest | Peer/catalog capabilities | Compatibility | Partial |
-| 16 | Device boot ID | Missing in AgentLink | Pairing state only | Heartbeat support | Liveness | Partial |
-| 17 | Monotonic heartbeat sequence | Wall-clock heartbeat | No local peer heartbeat | Instrumentation heartbeat | Liveness | Partial |
+| 16 | Device boot ID | Implemented | Implemented | Heartbeat support | Liveness | Partial |
+| 17 | Monotonic heartbeat sequence | Implemented | Implemented | Instrumentation heartbeat | Liveness | Partial |
 | 18 | HQ heartbeat acknowledgement | Implemented | Implemented | Separate HqPeer shape | Liveness | Partial |
 | 19 | Configuration heartbeat to istate | No consumer | Missing client | RPC exists | Liveness | Missing |
 | 20 | Spoke heartbeat to istate | N/A | N/A | Implemented | Device health | Implemented |
@@ -86,9 +86,9 @@ deployment decision before code can safely land.
 | 68 | Location telemetry | Implemented | Missing | Telemetry source | Telemetry | Partial |
 | 69 | Log upload URL | Implemented | Request support | Bundle support | Logs | Partial |
 | 70 | Log upload completion | Missing | Missing | Bundle metadata | Logs | Missing |
-| 71 | Per-daemon log files | Missing | Missing | Logmanager store | Logs | Missing |
-| 72 | Journal collection | Missing | Missing | Platform API exists | Logs | Missing |
-| 73 | Application log sink | Missing | Missing | Application API | Logs | Missing |
+| 71 | Per-daemon log files | Missing | Missing | Logmanager store | Logs | Partial |
+| 72 | Journal collection | Missing | Missing | Platform API exists | Logs | Partial |
+| 73 | Application log sink | Missing | Missing | Application API | Logs | Partial |
 | 74 | Log rotation | N/A | N/A | Store rotation | Logs | Implemented |
 | 75 | Log retention budget | Missing | Missing | Budget RPC | Logs | Partial |
 | 76 | Secret redaction | Partial | Partial | Redaction helpers | Security | Partial |
