@@ -73,6 +73,15 @@ int main(int argc, char** argv)
     std::vector<instr::logmanager::SourceSpec> sources = {
         {"journal-system", "journal", "kernel", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
         {"journal-istate", "journal", "instr-istate", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-networkd", "journal", "instr-networkd", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-monitord", "journal", "instr-monitord", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-hardware", "journal", "instr-hardware", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-faults", "journal", "instr-faults", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-alarms", "journal", "instr-alarms", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-telemetry", "journal", "instr-telemetry", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-ota", "journal", "instr-ota", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-backup", "journal", "instr-backup", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+        {"journal-logmanager", "journal", "instr-logmanager", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
         // Application log sink (§7.7): colocated applications append here and
         // the collector picks the lines up. Shipped by default so an app on a
         // stock image is collected without a config push.

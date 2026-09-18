@@ -10,6 +10,66 @@ sources:
     level: INFO
     rotate_size_bytes: 8388608
     retention_files: 5
+  - name: journal-istate
+    kind: journal
+    path: instr-istate
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-networkd
+    kind: journal
+    path: instr-networkd
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-monitord
+    kind: journal
+    path: instr-monitord
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-hardware
+    kind: journal
+    path: instr-hardware
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-faults
+    kind: journal
+    path: instr-faults
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-alarms
+    kind: journal
+    path: instr-alarms
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-telemetry
+    kind: journal
+    path: instr-telemetry
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-ota
+    kind: journal
+    path: instr-ota
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-backup
+    kind: journal
+    path: instr-backup
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
+  - name: journal-logmanager
+    kind: journal
+    path: instr-logmanager
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5
   # Application log sink (§7.7): colocated applications append lines here and
   # logmanager collects them alongside the journal. Kind "app" is a file sink
   # whose path is owned by the application rather than by systemd.
