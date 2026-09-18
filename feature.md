@@ -62,7 +62,7 @@ deployment decision before code can safely land.
 | 44 | Running state | Missing | Missing | N/A | Commands | Missing |
 | 45 | Succeeded state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
 | 46 | Failed state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
-| 47 | Expired state | Missing | Missing | Deadline support | Commands | Missing |
+| 47 | Expired state | Implemented | Missing | Deadline support | Commands | Partial |
 | 48 | Operation discovery | Missing | Missing | Catalog APIs | Commands | Missing |
 | 49 | Catalog revision | Missing | Missing | Catalog source | Compatibility | Missing |
 | 50 | Catalog hash | Missing | Missing | Descriptor support | Compatibility | Missing |
@@ -111,7 +111,7 @@ deployment decision before code can safely land.
 | 93 | INVALID_ARGUMENT mapping | API validation | Missing | Validation | Errors | Missing |
 | 94 | NOT_FOUND mapping | API | Missing | Catalog | Errors | Partial |
 | 95 | UNAVAILABLE mapping | Gateway | Missing | Peer | Errors | Missing |
-| 96 | DEADLINE_EXCEEDED mapping | Missing | Missing | Control deadline | Errors | Missing |
+| 96 | DEADLINE_EXCEEDED mapping | Implemented | Missing | Control deadline | Errors | Partial |
 | 97 | ALREADY_EXISTS mapping | Missing | Cache only | Request IDs | Errors | Missing |
 | 98 | FAILED_PRECONDITION mapping | Missing | Missing | Policy/state | Errors | Missing |
 | 99 | ABORTED mapping | Missing | Missing | Cancellation | Errors | Missing |
