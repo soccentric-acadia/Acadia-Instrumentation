@@ -27,9 +27,9 @@ deployment decision before code can safely land.
 | 9 | Credential revocation | Gateway enforcement | Revoked state | Peer disconnect support | Security | Partial |
 | 10 | Credential rotation | Implemented | Re-enrollment path | Key rotation RPC | Security | Partial |
 | 11 | Device-initiated connection | AgentLink server | AgentLink client | HqPeer client | Connectivity | Partial |
-| 12 | Shared device protocol source | HQ proto copy | Configuration proto copy | Separate istate proto | Contract owner | Missing |
+| 12 | Shared device protocol source | Contract metadata pending consumer | Contract metadata pending consumer | Versioned contract artifacts | Contract owner | Partial |
 | 13 | Protocol version negotiation | Implemented | Implemented | Registration version | Compatibility | Partial |
-| 14 | Descriptor/hash negotiation | Missing | Missing | Descriptor artifacts | Compatibility | Partial |
+| 14 | Descriptor/hash negotiation | Pending consumer | Pending consumer | Versioned descriptor/hash artifacts | Compatibility | Partial |
 | 15 | Capability negotiation | Device model partial | Board manifest | Peer/catalog capabilities | Compatibility | Partial |
 | 16 | Device boot ID | Implemented | Implemented | Heartbeat support | Liveness | Partial |
 | 17 | Monotonic heartbeat sequence | Implemented | Implemented | Instrumentation heartbeat | Liveness | Partial |
@@ -53,19 +53,19 @@ deployment decision before code can safely land.
 | 35 | Command delivery acknowledgement | Implemented | Implemented | ControlReply exists | Commands | Partial |
 | 36 | Command correlation ID | Newly persisted | Newly sent | Request IDs exist | Commands | Partial |
 | 37 | Idempotency key | Schema fields | Bounded cache | Control request ID | Commands | Partial |
-| 38 | At-most-once destructive execution | Missing | Partial wrapper | Policy support | Safety | Missing |
+| 38 | At-most-once destructive execution | Implemented lease/retry guard | Partial wrapper | Policy support | Safety | Partial |
 | 39 | Command deadline propagation | Missing | Field exists | Control deadline | Safety | Partial |
-| 40 | Duplicate command response | Missing | Completed cache | Audit query missing | Safety | Partial |
+| 40 | Duplicate command response | Implemented durable status | Completed cache | Audit query missing | Safety | Partial |
 | 41 | Lost acknowledgement recovery | Missing | Missing | Status query support | Safety | Missing |
-| 42 | Command state machine | Pending only | No durable state | Audit events | Commands | Missing |
+| 42 | Command state machine | Implemented | No durable state | Audit events | Commands | Partial |
 | 43 | Accepted state | Missing | Missing | N/A | Commands | Missing |
 | 44 | Running state | Missing | Missing | N/A | Commands | Missing |
 | 45 | Succeeded state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
 | 46 | Failed state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
 | 47 | Expired state | Implemented | Missing | Deadline support | Commands | Partial |
 | 48 | Operation discovery | Implemented | Implemented | Catalog APIs | Commands | Partial |
-| 49 | Catalog revision | Missing | Missing | Catalog source | Compatibility | Partial |
-| 50 | Catalog hash | Missing | Missing | Descriptor support | Compatibility | Partial |
+| 49 | Catalog revision | Pending consumer | Pending consumer | Versioned catalog metadata | Compatibility | Partial |
+| 50 | Catalog hash | Pending consumer | Pending consumer | Deterministic catalog hash | Compatibility | Partial |
 | 51 | Generic daemon operation | Typed HQ enum | Typed agent enum | Generic relay | Commands | Partial |
 | 52 | Backup operation | Queued | Unsupported handler | Backup spoke | Backup | Partial |
 | 53 | Restore operation | Queued | Unsupported handler | Backup spoke | Backup | Partial |
@@ -95,7 +95,7 @@ deployment decision before code can safely land.
 | 77 | Secret-free heartbeat | Partial | Partial | Contract comments | Security | Partial |
 | 78 | Secret-free audit | Partial | Audit log | Audit policy | Security | Partial |
 | 79 | TLS/channel authentication | Gateway deployment | Agent currently plaintext | WireGuard/HQ peer | Security | Partial |
-| 80 | Local UDS authentication | N/A | Missing client | Socket permissions | Security | Partial |
+| 80 | Local UDS authentication | N/A | Implemented client | Socket permissions | Security | Partial |
 | 81 | Application UDS group policy | N/A | N/A | sysusers/socket policy | Security | Partial |
 | 82 | Tenant/device authorization | Implemented | Local authorization | Final device policy | Security | Partial |
 | 83 | Operation classification | Missing | Missing | Implemented policy | Safety | Partial |
@@ -105,27 +105,27 @@ deployment decision before code can safely land.
 | 87 | JSON argument validation | Missing | Partial | Implemented control validation | Safety | Partial |
 | 88 | Argument size limits | Missing | Partial | Implemented transport limits | Safety | Partial |
 | 89 | Result payload size limits | Missing | Missing | Implemented control reply limit | Safety | Partial |
-| 90 | Stable machine error codes | Partial | Missing | Partial | Errors | Missing |
+| 90 | Stable machine error codes | Partial | Implemented | Partial | Errors | Partial |
 | 91 | UNAUTHENTICATED mapping | Gateway | Agent error | Peer error | Errors | Partial |
-| 92 | PERMISSION_DENIED mapping | API auth | Missing | Policy | Errors | Missing |
-| 93 | INVALID_ARGUMENT mapping | API validation | Missing | Validation | Errors | Missing |
+| 92 | PERMISSION_DENIED mapping | API auth | Implemented | Policy | Errors | Partial |
+| 93 | INVALID_ARGUMENT mapping | API validation | Implemented | Validation | Errors | Partial |
 | 94 | NOT_FOUND mapping | API | Missing | Catalog | Errors | Partial |
-| 95 | UNAVAILABLE mapping | Gateway | Missing | Peer | Errors | Missing |
-| 96 | DEADLINE_EXCEEDED mapping | Implemented | Missing | Control deadline | Errors | Partial |
+| 95 | UNAVAILABLE mapping | Gateway | Implemented transport mapping | Peer | Errors | Partial |
+| 96 | DEADLINE_EXCEEDED mapping | Implemented | Implemented transport mapping | Control deadline | Errors | Partial |
 | 97 | ALREADY_EXISTS mapping | Missing | Cache only | Request IDs | Errors | Missing |
-| 98 | FAILED_PRECONDITION mapping | Missing | Missing | Policy/state | Errors | Missing |
+| 98 | FAILED_PRECONDITION mapping | Missing | Implemented | Policy/state | Errors | Partial |
 | 99 | ABORTED mapping | Missing | Missing | Cancellation | Errors | Missing |
 | 100 | INTERNAL mapping | Partial | Partial | Partial | Errors | Partial |
 | 101 | Local configuration read | N/A | Existing engine | GetConfig RPC | Configuration | Partial |
 | 102 | Local configuration write | N/A | Existing engine | SetConfig RPC | Configuration | Partial |
-| 103 | HQ configuration read | Missing | Missing | GetConfig RPC | Configuration | Missing |
-| 104 | HQ configuration write | Missing | Missing | Signed config path | Configuration | Missing |
+| 103 | HQ configuration read | Implemented durable API | Implemented handler | GetConfig RPC | Configuration | Partial |
+| 104 | HQ configuration write | Implemented durable API | Implemented signed handler | Signed config path | Configuration | Partial |
 | 105 | Configuration origin tracking | N/A | Engine support | `/pst` owner | Configuration | Partial |
-| 106 | HQ signed configuration | Missing | Missing | Signature support | Configuration | Missing |
-| 107 | Local-over-HQ precedence | Missing | Engine policy | Origin policy | Configuration | Partial |
-| 108 | Configuration schema negotiation | Missing | Schema exists | Schema version | Compatibility | Partial |
-| 109 | Configuration audit timeline | Missing | Audit log | Timeline | Audit | Partial |
-| 110 | HQ audit correlation | API audit | Local audit | Device audit | Audit | Missing |
+| 106 | HQ signed configuration | Implemented HMAC envelope | Implemented Ed25519 verification | Signature support | Configuration | Partial |
+| 107 | Local-over-HQ precedence | Missing | HQ-origin validation | Origin policy | Configuration | Partial |
+| 108 | Configuration schema negotiation | Missing | Schema version validation | Schema version | Compatibility | Partial |
+| 109 | Configuration audit timeline | Implemented | Audit log | Timeline | Audit | Partial |
+| 110 | HQ audit correlation | Implemented correlation IDs | Local audit | Device audit | Audit | Partial |
 | 111 | Device status REST API | Implemented | Missing | Status source | Fleet UI | Partial |
 | 112 | Device health REST API | Missing | Missing | Health score | Fleet UI | Missing |
 | 113 | Command status REST API | Implemented | Missing | Result source | Fleet UI | Partial |
@@ -152,18 +152,18 @@ deployment decision before code can safely land.
 | 134 | Peer socket permissions | N/A | Missing client | System files | Security | Partial |
 | 135 | Systemd ordering | Deployment | Deployment | Units exist | Deployment | Partial |
 | 136 | Package version pinning | Image config | Crate version | VERSION | Deployment | Missing |
-| 137 | Matching proto artifacts | Generated | Generated | Generated | Deployment | Missing |
-| 138 | In-memory gateway/device harness | Partial tests | Partial tests | C++ tests | Testing | Missing |
+| 137 | Matching proto artifacts | Pending consumer | Pending consumer | Versioned contract artifacts | Deployment | Partial |
+| 138 | In-memory gateway/device harness | Partial tests | Partial tests | C++ tests | Testing | Partial |
 | 139 | Pairing/reconnect integration test | Gateway tests | Agent tests | N/A | Testing | Partial |
 | 140 | HQ outage integration test | Missing | Missing | Missing | Testing | Missing |
 | 141 | istate outage integration test | Missing | Missing | Local tests | Testing | Missing |
-| 142 | Operation discovery integration test | Missing | Missing | Catalog tests | Testing | Missing |
-| 143 | Duplicate command integration test | Missing | Unit cache | Control tests | Testing | Partial |
+| 142 | Operation discovery integration test | Implemented | Missing | Catalog tests | Testing | Partial |
+| 143 | Duplicate command integration test | Implemented | Unit cache | Control tests | Testing | Partial |
 | 144 | Revocation integration test | Gateway tests | Agent tests | N/A | Testing | Partial |
 | 145 | Secret-leak integration test | Partial | Partial | Existing tests | Testing | Partial |
 | 146 | Tenant isolation integration test | API tests | N/A | N/A | Testing | Implemented |
 | 147 | Reboot/boot-ID integration test | Missing | Missing | Missing | Testing | Missing |
-| 148 | Fault/telemetry while command runs | Partial | Missing | Spoke streams | Testing | Missing |
+| 148 | Fault/telemetry while command runs | Implemented test | Missing | Spoke streams | Testing | Partial |
 | 149 | Three-repo release gate | Separate gates | Separate gate | Separate gate | Release | Missing |
 | 150 | Rollback compatibility window | Missing | Missing | Missing | Release | Missing |
 
