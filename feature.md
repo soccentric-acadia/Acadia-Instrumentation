@@ -63,7 +63,7 @@ deployment decision before code can safely land.
 | 45 | Succeeded state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
 | 46 | Failed state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
 | 47 | Expired state | Implemented | Missing | Deadline support | Commands | Partial |
-| 48 | Operation discovery | Missing | Missing | Catalog APIs | Commands | Missing |
+| 48 | Operation discovery | Implemented | Missing | Catalog APIs | Commands | Partial |
 | 49 | Catalog revision | Missing | Missing | Catalog source | Compatibility | Missing |
 | 50 | Catalog hash | Missing | Missing | Descriptor support | Compatibility | Missing |
 | 51 | Generic daemon operation | Typed HQ enum | Typed agent enum | Generic relay | Commands | Missing |
@@ -129,7 +129,7 @@ deployment decision before code can safely land.
 | 111 | Device status REST API | Implemented | Missing | Status source | Fleet UI | Partial |
 | 112 | Device health REST API | Missing | Missing | Health score | Fleet UI | Missing |
 | 113 | Command status REST API | Implemented | Missing | Result source | Fleet UI | Partial |
-| 114 | Operation catalog REST API | Missing | Missing | Catalog source | Fleet UI | Missing |
+| 114 | Operation catalog REST API | Implemented | Missing | Catalog source | Fleet UI | Partial |
 | 115 | Live device status UI | Partial | Local UI partial | N/A | Fleet UI | Partial |
 | 116 | Local HQ/istate status UI | N/A | Missing | Status source | Local UI | Missing |
 | 117 | WebSocket status fanout | Partial | SSE/local events | Timeline | Fleet UI | Partial |
