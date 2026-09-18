@@ -222,6 +222,9 @@ class Orchestrator
     /// @param name Spoke to look up.
     /// @return Pointer to the info, or NotFound.
     std::string status_json() const;
+    /// @brief Aggregate peer health and presence for northbound status APIs.
+    /// @return Object containing counts, score, and per-peer state.
+    std::string health_summary_json() const;
 
     /// @brief Install the event sink (liveness and lifecycle events).
     /// @param f Event sink (kind, detail).

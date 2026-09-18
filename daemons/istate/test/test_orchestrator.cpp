@@ -31,6 +31,7 @@
 #include <gtest/gtest.h>
 
 #include "instr/istate/orchestrator.h"
+#include "instr/common/json.h"
 #include "instr/transport/transport.h"
 #include "instr/platform/simulated.h"
 
@@ -68,6 +69,22 @@ TEST(OrchestratorOrder, DependencyEdgesConsistent)
             EXPECT_LT(di, self) << dep << " must start before " << kv.first;
         }
     }
+}
+
+TEST(Orchestrator, HealthSummaryAggregatesPresence)
+{
+    SimulatedPlatform plat;
+    ManualTimeSource ts;
+    Orchestrator orch(plat, ts);
+    orch.declare_spokes({"alpha", "beta"});
+    orch.mark_ready("alpha");
+    auto summary = json_parse(orch.health_summary_json());
+    ASSERT_TRUE(summary.ok());
+    EXPECT_EQ((*summary).find("total")->as_number(), 2);
+    EXPECT_EQ((*summary).find("ready")->as_number(), 1);
+    EXPECT_EQ((*summary).find("not_present")->as_number(), 1);
+    EXPECT_EQ((*summary).find("state")->as_string(), "degraded");
+    EXPECT_EQ((*summary).find("peers")->size(), 2u);
 }
 
 /// @brief A proto mismatch at registration is refused and alarms.

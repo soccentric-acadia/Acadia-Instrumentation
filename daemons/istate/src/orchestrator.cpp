@@ -32,6 +32,7 @@
 #include <algorithm>
 
 #include "instr/transport/transport.h"
+#include "instr/common/json.h"
 
 namespace instr
 {
@@ -177,6 +178,7 @@ void Orchestrator::mark_ready(const std::string& name)
     it->second.state = SpokeState::Ready;
     it->second.live = true;
     it->second.last_seen_mono = ts_.mono_ns();
+    if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + name + "\",\"online\":true}");
 }
 
 /// @brief Record inbound activity from a spoke.
@@ -198,6 +200,7 @@ void Orchestrator::mark_stopped(const std::string& name)
     if (it == spokes_.end()) return;
     it->second.state = SpokeState::Stopped;
     it->second.live = false;
+    if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + name + "\",\"online\":false}");
 }
 
 /// @brief Record a pong answering an outstanding ping.
@@ -272,6 +275,7 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
                 info.state = SpokeState::Hung;
                 info.live = false;
                 out.push_back({kv.first, "hung"});
+                if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + kv.first + "\",\"online\":false,\"reason\":\"hung\"}");
                 // Request restart through systemd (§7.1: orchestration, not
                 // supervision — systemd owns the restart itself).
                 (void)plat_.unit_restart(info.unit);
@@ -284,6 +288,7 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
             info.state = SpokeState::Ready;
             info.live = true;
             out.push_back({kv.first, "recovered"});
+            if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + kv.first + "\",\"online\":true,\"reason\":\"recovered\"}");
         }
         else { info.live = true; }
         (void)now_s;
@@ -357,6 +362,44 @@ std::string Orchestrator::status_json() const
         arr.push(o);
     }
     return arr.dump();
+}
+
+std::string Orchestrator::health_summary_json() const
+{
+    size_t ready = 0;
+    size_t degraded_count = 0;
+    size_t absent = 0;
+    for (const auto& kv : spokes_)
+    {
+        if (kv.second.state == SpokeState::Ready && kv.second.live)
+            ++ready;
+        else if (kv.second.state == SpokeState::Stopped || kv.second.state == SpokeState::Expected)
+            ++absent;
+        else
+            ++degraded_count;
+    }
+    JValue root = JValue::object();
+    root.set("total", JValue(static_cast<int64_t>(spokes_.size())));
+    root.set("ready", JValue(static_cast<int64_t>(ready)));
+    root.set("degraded", JValue(static_cast<int64_t>(degraded_count)));
+    root.set("not_present", JValue(static_cast<int64_t>(absent)));
+    const size_t total = spokes_.size();
+    const double score = total == 0 ? 0.0 : 100.0 * static_cast<double>(ready) / static_cast<double>(total);
+    root.set("score", JValue(score));
+    root.set("state", JValue(absent == total && total != 0 ? "not-present" : degraded_count || absent ? "degraded" : "pass"));
+    JValue peers = JValue::array();
+    for (const auto& kv : spokes_)
+    {
+        JValue peer = JValue::object();
+        peer.set("name", JValue(kv.first));
+        peer.set("state", JValue(spoke_state_name(kv.second.state)));
+        peer.set("present", JValue(kv.second.state != SpokeState::Expected && kv.second.state != SpokeState::Stopped));
+        peer.set("live", JValue(kv.second.live));
+        peer.set("last_seen_mono", JValue(static_cast<int64_t>(kv.second.last_seen_mono)));
+        peers.push(peer);
+    }
+    root.set("peers", peers);
+    return root.dump();
 }
 
 } // namespace istate
