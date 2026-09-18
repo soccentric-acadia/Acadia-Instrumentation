@@ -406,3 +406,138 @@ The feature set is ready for release when:
    `istate` subject to authorization.
 7. The generated interface documentation, schemas, service files, tests, and
    deployment packaging all describe the same behavior.
+# Three-repository integration implementation plan
+
+This plan turns [feature.md](./feature.md) into an executable sequence for
+Acadia-HQ, Acadia-Configuration, and Acadia-Instrumentation. It does not
+replace the hub-and-spoke boundary: `istate` remains the sole local hub and
+sole `/pst` owner.
+
+## Current architecture decision
+
+The current trees contain three overlapping contracts:
+
+1. HQ's `acadiahq.agent.AgentLink`;
+2. Instrumentation's `instr.istate.HqPeer`;
+3. Instrumentation's `ConfigurationApi` over UDS.
+
+The target is one versioned peer/control message package consumed by HQ and
+Configuration, with Instrumentation's local service using the same logical
+`Heartbeat`, `PeerStatus`, `OperationDescriptor`, `ControlRequest`, and
+`ControlReply` semantics. Transport remains different: device-initiated HQ
+stream, local Configuration UDS, and Instrumentation's existing WireGuard
+peer.
+
+## Work phases
+
+### Phase 0 — Contract ownership and compatibility
+
+**Repositories:** all three.
+
+* Establish one canonical `peer.proto` package and provenance rule.
+* Define protocol/schema versions, descriptor hash, capability negotiation,
+  boot ID, monotonic heartbeat fields, correlation IDs, idempotency keys,
+  deadlines, and stable error codes.
+* Keep legacy typed HQ commands only as source-language adapters that serialize
+  to the canonical command shape.
+* Add golden descriptor and JSON fixture tests for success, permission denial,
+  deadline, unavailable, duplicate, and confirmation failures.
+* Add a compatibility matrix for HQ gateway, Configuration agent, and
+  Instrumentation protocol versions.
+
+**Exit gate:** generated HQ and Rust descriptors match the same canonical
+  contract; an in-memory gateway/device test proves field and error stability.
+
+### Phase 1 — Configuration's real Instrumentation client
+
+**Repository:** Acadia-Configuration.
+
+* Add a typed `IstateClient` trait with real UDS and mock implementations.
+* Implement bounded connect/request deadlines and structured error mapping.
+* Add heartbeat lifecycle (`Unreachable`, `Connecting`, `Ready`, `Degraded`,
+  `Failed`) with monotonic sequence and boot ID.
+* Wire `GetPeerStatus`, `ListOperations`, `Control`, system/config, events,
+  health, and enrollment calls into WebConfig without blocking HTTP handlers.
+* Add a status aggregate combining HQ session, istate peer state, daemon health,
+  and watchdog state.
+
+**Exit gate:** mock tests prove outage/recovery, deadline, stale peer state,
+  structured errors, and secret-free logging.
+
+### Phase 2 — HQ command execution through Configuration and istate
+
+**Repositories:** HQ + Configuration + Instrumentation.
+
+* Replace `NullCommandHandler` with an `IstateCommandHandler`.
+* Validate the operation catalog and required confirmation on the device.
+* Map `command_id == ControlRequest.request_id == audit correlation ID`.
+* Persist command states and leases in HQ; return terminal results unchanged.
+* Deduplicate by `(device_id, command_id/idempotency_key)` before execution.
+* Never automatically retry disruptive operations; query status before retrying
+  an uncertain result.
+* Enforce the same operation policy in HQ, Configuration, and istate.
+
+**Exit gate:** a safe operation is discovered and executed end-to-end; duplicate
+  delivery executes once; a denied and a deadline-exceeded command return
+  machine-readable failures.
+
+### Phase 3 — Presence, health, telemetry, faults, and logs
+
+**Repositories:** all three.
+
+* Correlate HQ wall-clock presence with Instrumentation monotonic health.
+* Publish explicit online, degraded, and offline transitions.
+* Add telemetry/fault/alarm/log event forwarding with bounded spool and
+  backpressure semantics.
+* Complete LogManager journal/file/application collection and per-daemon
+  retention.
+* Expose local and fleet status APIs without secrets.
+
+**Exit gate:** HQ outage leaves local control working; istate outage reports
+  degraded; event delivery survives reconnect and does not silently drop
+  protected faults or alarms.
+
+### Phase 4 — Security, configuration authority, and deployment
+
+**Repositories:** all three plus Acadia-OS packaging.
+
+* Require authenticated HQ transport and local UDS permissions.
+* Implement signed HQ configuration pushes and origin precedence through istate.
+* Enforce tenant/device/role authorization before queue insertion and again at
+  device control.
+* Add argument/result size limits, confirmation policy, secret redaction, and
+  audit completeness.
+* Pin matching package/proto versions, systemd ordering, socket ownership,
+  certificates, and rollback metadata.
+
+**Exit gate:** security, tenant-isolation, secret-leak, protocol, and deployment
+  tests pass on a lab image.
+
+### Phase 5 — Release and operational validation
+
+Run all three repository quick/full gates plus a deterministic end-to-end
+harness three consecutive times. Exercise:
+
+* first enrollment, reconnect, reboot, and credential reissue;
+* HQ outage, istate outage, delayed frames, and forced disconnects;
+* operation discovery, safe control, denial, deadline, duplicate delivery;
+* telemetry/fault delivery while a command is running;
+* revocation during an active stream;
+* no secret leakage and observe-only watchdog behavior.
+
+Enable read-only status first, safe operations second, and disruptive
+operations only after recovery and idempotency evidence exists.
+
+## Immediate implementation backlog
+
+The first coding slice is intentionally narrow and verifiable:
+
+1. Canonicalize command/ack metadata and generated bindings.
+2. Persist structured command results and correlation IDs in HQ.
+3. Add bounded device idempotency.
+4. Add the Configuration `IstateClient` trait and mock contract tests.
+5. Wire real UDS status/control calls.
+6. Add the end-to-end in-memory gateway/device/istate harness.
+
+Each item must update the relevant rows in [feature.md](./feature.md), add a
+focused test, and pass the owning repository's gate before the next item.
