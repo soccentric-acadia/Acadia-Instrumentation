@@ -55,6 +55,7 @@ CommandTable build_istate_table(IstateCore* core)
                auto j = json_parse(core->orchestrator().status_json());
                return j.ok() ? CommandResult::good((*j).dump()) : CommandResult::err(Errc::Internal, "status render failed");
            }});
+    t.add({"health", "aggregate daemon health and presence", {}, [core](const std::string&) { return CommandResult::good(core->orchestrator().health_summary_json()); }});
     t.add({"config-get", "effective config for a daemon (drift report)", {{"daemon", true, "daemon name"}}, [core](const std::string& args) {
                auto a = args_object(args);
                if (!a.ok()) return CommandResult::from_error(a.error);
@@ -129,19 +130,31 @@ CommandTable build_istate_table(IstateCore* core)
                }
                return CommandResult::good(arr.dump());
            }});
-    t.add({"reset", "system reset (wipes system/ + state/, reseeds defaults)", {{"confirm", false, "must be 'SYSTEM-RESET'"}}, [core](const std::string& args) {
+    t.add({"reset",
+           "system reset (wipes system/ + state/, reseeds defaults)",
+           {{"confirm", false, "must be 'SYSTEM-RESET'"}},
+           [core](const std::string& args) {
                auto a = args_object(args);
                if (!a.ok()) return CommandResult::from_error(a.error);
                if ((*a).get_string("confirm") != "SYSTEM-RESET") return CommandResult::err(Errc::InvalidArgument, "confirm=SYSTEM-RESET required");
                auto r = core->system_reset("local-console");
                return r.ok() ? CommandResult::good(std::string("{\"reset\":true}")) : CommandResult::from_error(r.error);
-           }});
-    t.add({"factory-reset", "factory reset (manufacturing only, explicitly gated)", {{"confirm", true, "must be 'FACTORY-RESET'"}}, [core](const std::string& args) {
+           },
+           OperationClass::Destructive,
+           true,
+           true});
+    t.add({"factory-reset",
+           "factory reset (manufacturing only, explicitly gated)",
+           {{"confirm", true, "must be 'FACTORY-RESET'"}},
+           [core](const std::string& args) {
                auto a = args_object(args);
                if (!a.ok()) return CommandResult::from_error(a.error);
                auto r = core->factory_reset("local-console", (*a).get_string("confirm"));
                return r.ok() ? CommandResult::good(std::string("{\"reset\":true}")) : CommandResult::from_error(r.error);
-           }});
+           },
+           OperationClass::Manufacturing,
+           true,
+           true});
     t.add({"time-policy", "current time policy and lock state", {}, [core](const std::string&) {
                JValue o = JValue::object();
                o.set("source", JValue(core->time_policy().current_source));

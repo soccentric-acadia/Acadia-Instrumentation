@@ -70,3 +70,37 @@ TEST(CommandTable, HelpForUnknownOpIsDiagnosable)
     auto h = t.help_for("ghost");
     EXPECT_NE(h.find("unknown op"), std::string::npos);
 }
+
+TEST(CommandTable, GenericValidationPolicyAndLimits)
+{
+    CommandTable t;
+    t.add({"mutate", "bounded mutation", {{"name", true, "name", JsonArgType::String, 4}}, [](const std::string&) { return CommandResult::good("{\"ok\":true}"); }, OperationClass::Mutating, true});
+    DispatchContext remote;
+    remote.actor = "hq";
+    EXPECT_EQ(t.dispatch("mutate", "{\"name\":\"abc\"}", remote).error_code, "unavailable");
+    EXPECT_EQ(t.dispatch("mutate", "{\"name\":\"abc\",\"extra\":1}").error_code, "invalid-argument");
+    EXPECT_EQ(t.dispatch("mutate", "{\"name\":1}").error_code, "invalid-argument");
+    EXPECT_EQ(t.dispatch("mutate", "{\"name\":\"abcde\"}").error_code, "budget-exceeded");
+
+    CommandTable destructive;
+    destructive.add({"wipe", "destructive", {}, [](const std::string&) { return CommandResult::good("{}"); }, OperationClass::Destructive, false, true});
+    EXPECT_EQ(destructive.dispatch("wipe", "{}").error_code, "invalid-argument");
+    DispatchContext confirmed;
+    confirmed.confirmed = true;
+    EXPECT_TRUE(destructive.dispatch("wipe", "{}", confirmed).ok);
+}
+
+TEST(CommandTable, CatalogRevisionAndHashAreStable)
+{
+    CommandTable t;
+    t.add({"one", "first", {}, [](const std::string&) { return CommandResult::good("{}"); }});
+    const auto hash = t.catalog_hash();
+    EXPECT_EQ(t.catalog_revision(), 1u);
+    EXPECT_EQ(hash, t.catalog_hash());
+    t.add({"two", "second", {}, [](const std::string&) { return CommandResult::good("{}"); }});
+    EXPECT_EQ(t.catalog_revision(), 2u);
+    EXPECT_NE(hash, t.catalog_hash());
+    auto catalog = json_parse(t.catalog_json());
+    ASSERT_TRUE(catalog.ok());
+    EXPECT_EQ((*catalog).find("operations")->size(), 2u);
+}

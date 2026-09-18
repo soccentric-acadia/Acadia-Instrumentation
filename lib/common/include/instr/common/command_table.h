@@ -33,6 +33,7 @@
  */
 
 #pragma once
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <string>
@@ -43,6 +44,34 @@
 
 namespace instr
 {
+
+enum class OperationClass
+{
+    ReadOnly,
+    Mutating,
+    Destructive,
+    Manufacturing
+};
+
+enum class JsonArgType
+{
+    Any,
+    String,
+    Number,
+    Bool,
+    Object,
+    Array
+};
+
+struct DispatchContext
+{
+    std::string actor = "local";
+    bool confirmed = false;
+    bool manufacturing_mode = false;
+};
+
+inline constexpr size_t kMaxCommandArguments = 64 * 1024;
+inline constexpr size_t kMaxCommandResult = 256 * 1024;
 
 /// @brief Outcome of a ctrl command invocation.
 struct CommandResult
@@ -106,6 +135,8 @@ struct ArgSpec
     std::string name; ///< JSON key of the argument.
     bool required = false; ///< True when the command cannot run without it.
     std::string help; ///< Short help text shown by --help.
+    JsonArgType type = JsonArgType::Any; ///< Optional JSON type constraint.
+    size_t max_string_bytes = 0; ///< Optional string limit (zero means unbounded).
 };
 
 /// @brief One ctrl command: operation name, description, args and handler.
@@ -115,6 +146,9 @@ struct CommandSpec
     std::string description; ///< Human-readable summary for --help.
     std::vector<ArgSpec> args; ///< Argument list shown by --help.
     std::function<CommandResult(const std::string& json_args)> handler; ///< Implementation; receives the raw JSON args string.
+    OperationClass classification = OperationClass::ReadOnly; ///< Safety classification.
+    bool local_only = false; ///< Reject remote actors for this operation.
+    bool require_confirmation = false; ///< Require DispatchContext::confirmed.
 };
 
 /// @brief Registry of ctrl commands for a daemon or tool; also renders help and completions.
@@ -126,6 +160,7 @@ class CommandTable
     void add(CommandSpec spec)
     {
         ops_[spec.op] = std::move(spec);
+        ++revision_;
     }
     /// @brief Look up a command by operation name.
     /// @return Pointer to the spec, or nullptr when unknown.
@@ -156,10 +191,21 @@ class CommandTable
     /// @return The handler's result, or a NotFound error.
     CommandResult dispatch(const std::string& op, const std::string& json_args) const
     {
-        const CommandSpec* spec = find(op);
-        if (!spec) return CommandResult::err(Errc::NotFound, "unknown op: " + op);
-        return spec->handler(json_args);
+        DispatchContext context;
+        context.confirmed = json_args.find("\"confirm\"") != std::string::npos;
+        return dispatch(op, json_args, context);
     }
+    /// @brief Validate policy, arguments, and bounded result before invoking a handler.
+    CommandResult dispatch(const std::string& op, const std::string& json_args, const DispatchContext& context) const;
+    /// @brief Return the stable catalog revision (incremented on every add).
+    uint64_t catalog_revision() const
+    {
+        return revision_;
+    }
+    /// @brief Return a deterministic SHA-256 hash of the operation catalog.
+    std::string catalog_hash() const;
+    /// @brief Return the machine-readable operation catalog.
+    std::string catalog_json() const;
 
     /// @brief --help output listing every command.
     /// @param prog Tool name used in the usage line.
@@ -181,6 +227,7 @@ class CommandTable
 
   private:
     std::map<std::string, CommandSpec> ops_; ///< Registered commands keyed by op name.
+    uint64_t revision_ = 0; ///< Monotonic catalog revision.
 };
 
 /// @brief Parse command arguments into a JValue object.

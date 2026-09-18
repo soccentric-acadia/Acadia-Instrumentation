@@ -29,6 +29,8 @@
 
 #include <sstream>
 
+#include "instr/common/crypto.h"
+
 namespace instr
 {
 
@@ -65,6 +67,99 @@ Result<JValue> args_object(const std::string& json_args)
     if (!v.ok()) return v;
     if (!(*v).is_object()) return Result<JValue>::fail(Errc::InvalidArgument, "command arguments must be a JSON object", "args_object");
     return v;
+}
+
+static bool type_matches(const JValue& value, JsonArgType type)
+{
+    switch (type)
+    {
+    case JsonArgType::Any: return true;
+    case JsonArgType::String: return value.is_string();
+    case JsonArgType::Number: return value.is_number();
+    case JsonArgType::Bool: return value.is_bool();
+    case JsonArgType::Object: return value.is_object();
+    case JsonArgType::Array: return value.is_array();
+    }
+    return false;
+}
+
+static const char* class_name(OperationClass c)
+{
+    switch (c)
+    {
+    case OperationClass::ReadOnly: return "read-only";
+    case OperationClass::Mutating: return "mutating";
+    case OperationClass::Destructive: return "destructive";
+    case OperationClass::Manufacturing: return "manufacturing";
+    }
+    return "unknown";
+}
+
+CommandResult CommandTable::dispatch(const std::string& op, const std::string& json_args, const DispatchContext& context) const
+{
+    const CommandSpec* spec = find(op);
+    if (!spec) return CommandResult::err(Errc::NotFound, "unknown op: " + op);
+    if (json_args.size() > kMaxCommandArguments) return CommandResult::err(Errc::BudgetExceeded, "command arguments exceed 64 KiB");
+    if (spec->local_only && context.actor != "local") return CommandResult::err(Errc::Unavailable, "operation is local-only");
+    if (spec->classification == OperationClass::Manufacturing && !context.manufacturing_mode) return CommandResult::err(Errc::Unavailable, "manufacturing mode is not enabled");
+    if ((spec->classification == OperationClass::Destructive || spec->require_confirmation) && !context.confirmed) return CommandResult::err(Errc::InvalidArgument, "explicit confirmation is required");
+
+    auto parsed = args_object(json_args);
+    if (!parsed.ok()) return CommandResult::from_error(parsed.error);
+    for (const auto& arg : spec->args)
+    {
+        const JValue* value = parsed->find(arg.name);
+        if (arg.required && !value) return CommandResult::err(Errc::InvalidArgument, arg.name + " is required");
+        if (!value) continue;
+        if (!type_matches(*value, arg.type)) return CommandResult::err(Errc::InvalidArgument, arg.name + " has the wrong JSON type");
+        if (arg.max_string_bytes && value->is_string() && value->as_string().size() > arg.max_string_bytes) return CommandResult::err(Errc::BudgetExceeded, arg.name + " exceeds its size limit");
+    }
+    for (const auto& member : parsed->members())
+    {
+        bool declared = false;
+        for (const auto& arg : spec->args)
+            if (arg.name == member.first)
+            {
+                declared = true;
+                break;
+            }
+        if (!declared) return CommandResult::err(Errc::InvalidArgument, "unknown argument: " + member.first);
+    }
+    CommandResult result = spec->handler(json_args);
+    if (result.ok && result.json_data.size() > kMaxCommandResult) return CommandResult::err(Errc::BudgetExceeded, "command result exceeds 256 KiB");
+    return result;
+}
+
+std::string CommandTable::catalog_json() const
+{
+    JValue root = JValue::object();
+    root.set("revision", JValue(static_cast<int64_t>(revision_)));
+    JValue operations = JValue::array();
+    for (const CommandSpec* spec : all())
+    {
+        JValue item = JValue::object();
+        item.set("op", JValue(spec->op));
+        item.set("description", JValue(spec->description));
+        item.set("classification", JValue(class_name(spec->classification)));
+        item.set("local_only", JValue(spec->local_only));
+        JValue args = JValue::array();
+        for (const auto& arg : spec->args)
+        {
+            JValue a = JValue::object();
+            a.set("name", JValue(arg.name));
+            a.set("required", JValue(arg.required));
+            args.push(a);
+        }
+        item.set("args", args);
+        operations.push(item);
+    }
+    root.set("operations", operations);
+    return root.dump();
+}
+
+std::string CommandTable::catalog_hash() const
+{
+    return crypto::sha256(catalog_json()).hex();
 }
 
 /// @brief --help output listing every command.
