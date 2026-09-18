@@ -22,3 +22,7 @@ out/
 build-*/
 
 output_dir/*
+
+# Per-task working artifacts.
+Plan.md
+Task.md
