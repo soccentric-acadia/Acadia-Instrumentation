@@ -128,7 +128,7 @@ deployment decision before code can safely land.
 | 110 | HQ audit correlation | API audit | Local audit | Device audit | Audit | Missing |
 | 111 | Device status REST API | Implemented | Missing | Status source | Fleet UI | Partial |
 | 112 | Device health REST API | Missing | Missing | Health score | Fleet UI | Missing |
-| 113 | Command status REST API | Missing | Missing | Result source | Fleet UI | Missing |
+| 113 | Command status REST API | Implemented | Missing | Result source | Fleet UI | Partial |
 | 114 | Operation catalog REST API | Missing | Missing | Catalog source | Fleet UI | Missing |
 | 115 | Live device status UI | Partial | Local UI partial | N/A | Fleet UI | Partial |
 | 116 | Local HQ/istate status UI | N/A | Missing | Status source | Local UI | Missing |
