@@ -16,7 +16,7 @@ ExecStart=/usr/bin/instr-backup
 Restart=on-failure
 RestartSec=2s
 # /pst access only under istate's direction (R4).
-ReadWritePaths=/pst/backup /run/instrumentation
+ReadWritePaths=/pst/backup /run/instrumentation /var/log/instrumentation
 User=instr-backup
 Group=instr
 ProtectSystem=strict

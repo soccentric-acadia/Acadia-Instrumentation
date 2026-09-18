@@ -92,6 +92,18 @@
     "watchdog_timeout_s": {
       "type": "integer",
       "minimum": 0
+    },
+    "heartbeat_interval_s": {
+      "type": "number",
+      "minimum": 1
+    },
+    "heartbeat_warning_timeout_s": {
+      "type": "number",
+      "minimum": 1
+    },
+    "heartbeat_failure_timeout_s": {
+      "type": "number",
+      "minimum": 1
     }
   },
   "required": [

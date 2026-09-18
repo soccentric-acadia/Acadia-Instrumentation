@@ -119,6 +119,21 @@ TEST(SystemFiles, ConfigurationPeerHasItsOwnUser)
     EXPECT_NE(users.find("u instr-configuration "), std::string::npos);
 }
 
+TEST(SystemFiles, IstateSoftwareWatchdogIsObserveOnly)
+{
+    const std::string users = slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
+    const std::string unit_text = slurp(std::string(REPO_ROOT) + "/system/systemd/instr-istate-watchdog.service");
+    EXPECT_NE(users.find("u instr-watchdog "), std::string::npos);
+    EXPECT_NE(unit_text.find("User=instr-watchdog"), std::string::npos);
+    EXPECT_NE(unit_text.find("ExecStart=/usr/bin/instr-istate-watchdog"), std::string::npos);
+    EXPECT_NE(unit_text.find("ReadOnlyPaths=/run/instrumentation"), std::string::npos);
+    EXPECT_NE(unit_text.find("CapabilityBoundingSet="), std::string::npos);
+    EXPECT_EQ(unit_text.find("CAP_SYS_BOOT"), std::string::npos);
+    EXPECT_EQ(unit_text.find("/dev/watchdog"), std::string::npos);
+    EXPECT_EQ(unit_text.find("systemctl"), std::string::npos);
+    EXPECT_EQ(unit_text.find("reboot"), std::string::npos);
+}
+
 /// @brief istate can chown spoke sockets to each daemon user (§3.1 socket handover).
 TEST(SystemFiles, IstateCanChownSpokeSockets)
 {

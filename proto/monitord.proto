@@ -35,6 +35,7 @@ message MonitorSpokeFrame {
     string status_json          = 5;  // MonitorStatus as JSON
     common.ConfigRequest config_request = 6;
     common.ConfigAck config_ack = 7;
+    common.Heartbeat heartbeat = 8;
   }
 }
 
@@ -45,6 +46,7 @@ message MonitorHubFrame {
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
     common.ConfigDelivery config = 5;
+    common.HeartbeatAck heartbeat_ack = 6;
   }
 }
 

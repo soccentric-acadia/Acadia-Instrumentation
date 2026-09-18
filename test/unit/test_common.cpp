@@ -32,6 +32,9 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <fstream>
+#include <filesystem>
+#include <unistd.h>
 #include <thread>
 
 #include "instr/common/alarm_codec.h"
@@ -607,6 +610,25 @@ TEST(Logging, PerSourceLevelControlAndRateLimit)
     for (int i = 0; i < 10; ++i) log.info("quiet", "flood " + std::to_string(i));
     EXPECT_LT(sink.records().size(), 12u);
     EXPECT_GT(log.dropped_by_rate_limit(), 0u);
+}
+
+TEST(Logging, FileSinkRedactsAndRotates)
+{
+    const auto path = std::filesystem::temp_directory_path() / ("instr-log-" + std::to_string(::getpid()) + ".log");
+    SystemTimeSource ts;
+    FileSink sink(path.string(), 128);
+    Logger log(sink, ts);
+    log.info("test", "token=secret", {{"password", "hidden"}});
+    std::ifstream in(path);
+    std::string line;
+    std::getline(in, line);
+    EXPECT_NE(line.find("[REDACTED]"), std::string::npos);
+    EXPECT_EQ(line.find("secret"), std::string::npos);
+    EXPECT_EQ(line.find("hidden"), std::string::npos);
+    for (int i = 0; i < 20; ++i) log.info("test", std::string(40, 'x'));
+    EXPECT_TRUE(std::filesystem::exists(path.string() + ".1"));
+    std::filesystem::remove(path);
+    std::filesystem::remove(path.string() + ".1");
 }
 
 // ---------------- ctrl framing ----------------

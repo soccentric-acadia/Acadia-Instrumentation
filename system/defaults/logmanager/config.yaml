@@ -1,6 +1,9 @@
 # logmanager configuration (defaults): which logs to collect and send
 enabled: true
 budget_bytes: 134217728
+daemon_log_dir: /var/log/instrumentation
+daemon_log_rotate_size_bytes: 8388608
+daemon_log_retention_files: 2
 sources:
   - name: journal-system
     kind: journal

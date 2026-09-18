@@ -1,0 +1,31 @@
+[Unit]
+Description=Instrumentation istate software watchdog (observe-only)
+Documentation=file:///usr/share/doc/instrumentation/interface.md
+After=instr-istate.service local-fs.target
+Wants=instr-istate.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/instr-istate-watchdog
+Restart=on-failure
+RestartSec=5s
+ReadOnlyPaths=/run/instrumentation
+ReadWritePaths=/var/log/instrumentation
+User=instr-watchdog
+Group=instr
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+SystemCallArchitectures=native
+ProtectHome=yes
+CapabilityBoundingSet=
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

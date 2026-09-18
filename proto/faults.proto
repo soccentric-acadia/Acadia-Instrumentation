@@ -34,6 +34,7 @@ message FaultSpokeFrame {
     string status_json          = 4;  // FaultStats as JSON
     common.ConfigRequest config_request = 5;
     common.ConfigAck config_ack = 6;
+    common.Heartbeat heartbeat = 7;
   }
 }
 
@@ -44,6 +45,7 @@ message FaultHubFrame {
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
     common.ConfigDelivery config = 5;
+    common.HeartbeatAck heartbeat_ack = 6;
   }
 }
 

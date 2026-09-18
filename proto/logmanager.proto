@@ -36,6 +36,7 @@ message LogSpokeFrame {
     string status_json          = 6;
     common.ConfigRequest config_request = 7;
     common.ConfigAck config_ack = 8;
+    common.Heartbeat heartbeat = 9;
   }
 }
 
@@ -46,6 +47,7 @@ message LogHubFrame {
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
     common.ConfigDelivery config = 5;
+    common.HeartbeatAck heartbeat_ack = 6;
   }
 }
 

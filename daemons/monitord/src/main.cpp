@@ -53,8 +53,10 @@ int main(int argc, char** argv)
     }
     std::atomic<bool> stop{false};
     instr::install_signal_handlers(stop);
-
-    instr::StderrSink sink;
+    instr::StderrSink stderr_sink;
+    const std::string log_root = args.root.empty() ? "/var/log/instrumentation" : args.root + "/var/log/instrumentation";
+    instr::FileSink file_sink(log_root + "/monitord.log");
+    instr::TeeSink sink({&stderr_sink, &file_sink});
     instr::SystemTimeSource ts;
     instr::Logger log(sink, ts);
     log.set_level(instr::LogLevel::Info);

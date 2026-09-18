@@ -90,6 +90,71 @@ message Backpressure {
 message LivenessPing { uint64 nonce = 1; }
 message LivenessPong { uint64 nonce = 1; }
 
+// Application-level peer health. A live transport is not sufficient evidence
+// that a daemon's event loop is making progress.
+message Heartbeat {
+  string peer       = 1;
+  uint64 sequence   = 2;
+  uint64 mono_ns    = 3;
+  string boot_id    = 4;
+  bool ready        = 5;
+  HealthState health = 6;
+  string detail     = 7;
+}
+
+message HeartbeatAck {
+  uint64 sequence = 1;
+  uint64 mono_ns  = 2;
+}
+
+enum PeerKind {
+  PEER_SPOKE = 0;
+  PEER_CONFIGURATION = 1;
+  PEER_HQ = 2;
+}
+
+message PeerStatus {
+  string peer = 1;
+  PeerKind kind = 2;
+  bool connected = 3;
+  bool operational = 4;
+  uint64 last_sequence = 5;
+  uint64 last_mono_ns = 6;
+  string state = 7;
+  string detail = 8;
+}
+message PeerStatusList { repeated PeerStatus peers = 1; }
+
+message OperationDescriptor {
+  string daemon = 1;
+  string op = 2;
+  string description = 3;
+  repeated string required_args = 4;
+  string authorization = 5;
+}
+
+message OperationDescriptorList {
+  repeated OperationDescriptor operations = 1;
+}
+
+message ControlRequest {
+  string daemon = 1;
+  string op = 2;
+  string json_args = 3;
+  string actor = 4;
+  uint64 request_id = 5;
+  uint32 deadline_ms = 6;
+}
+
+message ControlReply {
+  uint64 request_id = 1;
+  bool ok = 2;
+  string code = 3;
+  string message = 4;
+  string json_payload = 5;
+  string actor = 6;
+}
+
 // istate → spoke relay of another daemon's data (R1: all traffic via istate).
 message RelayedData {
   string source_daemon = 1;

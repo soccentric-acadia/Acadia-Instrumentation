@@ -66,7 +66,7 @@ namespace transport
 {
 
 /// @brief Proto schema version of this suite; istate refuses mismatched registrations (REQ §3.1, §11).
-constexpr uint32_t kProtoSchemaVersion = 2; // v2: config delivery (§9)
+constexpr uint32_t kProtoSchemaVersion = 3; // v3: application heartbeats
 
 /// @brief Type-erased spoke→hub message used by the transport layer.
 struct GenericSpokeMsg
@@ -110,6 +110,7 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
         std::vector<std::string> capabilities; ///< Capabilities advertised at registration.
         double backoff_base_s = 1.0; ///< Reconnect backoff base.
         double backoff_max_s = 30.0; ///< Reconnect backoff cap.
+        double heartbeat_interval_s = 5.0; ///< Application heartbeat interval.
     };
 
     /// @brief Construct a channel with @p opts logging to @p log.
@@ -295,16 +296,43 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
         // Writer thread.
         std::atomic<bool> stream_ok{true};
         std::thread writer([this, &rw, &stream_ok] {
+            auto next_heartbeat = std::chrono::steady_clock::now() + std::chrono::duration<double>(opts_.heartbeat_interval_s);
+            uint64_t heartbeat_sequence = 0;
             while (running_.load() && stream_ok.load())
             {
                 SpokeFrame f;
+                bool send_heartbeat = false;
                 {
                     std::unique_lock<std::mutex> lk(mu_);
-                    cv_.wait_for(lk, std::chrono::milliseconds(100), [this] { return !queue_.empty(); });
-                    if (queue_.empty()) continue;
-                    f = std::move(queue_.front());
-                    queue_.pop_front();
+                    if (opts_.heartbeat_interval_s > 0.0)
+                    {
+                        cv_.wait_until(lk, next_heartbeat, [this] { return !queue_.empty(); });
+                    }
+                    else
+                    {
+                        cv_.wait_for(lk, std::chrono::milliseconds(100), [this] { return !queue_.empty(); });
+                    }
+                    if (!queue_.empty())
+                    {
+                        f = std::move(queue_.front());
+                        queue_.pop_front();
+                    }
+                    else if (opts_.heartbeat_interval_s > 0.0 && std::chrono::steady_clock::now() >= next_heartbeat)
+                    {
+                        send_heartbeat = true;
+                        next_heartbeat = std::chrono::steady_clock::now() + std::chrono::duration<double>(opts_.heartbeat_interval_s);
+                    }
                 }
+                if (send_heartbeat)
+                {
+                    auto* hb = f.mutable_heartbeat();
+                    hb->set_peer(opts_.daemon);
+                    hb->set_sequence(++heartbeat_sequence);
+                    hb->set_mono_ns(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()));
+                    hb->set_ready(true);
+                    hb->set_health(common::HEALTH_PASS);
+                }
+                else if (f.body_case() == SpokeFrame::BODY_NOT_SET) { continue; }
                 if (!rw->Write(f))
                 {
                     stream_ok = false;
@@ -400,6 +428,7 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     using FrameIn = std::function<void(const GenericSpokeMsg&)>;
     /// @brief Outbound hub-frame source (enqueue for the spoke).
     using FrameOut = std::function<bool(const GenericHubMsg&)>;
+    using HeartbeatIn = std::function<void(const common::Heartbeat&)>;
 
     /// @brief Construct the hub for @p daemon reporting @p build_version.
     /// @param daemon Accepted spoke identity.
@@ -431,6 +460,11 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     void set_registration_fn(RegistrationFn f)
     {
         on_register_ = std::move(f);
+    }
+    /// @brief Install the heartbeat observer for this spoke.
+    void set_heartbeat_fn(HeartbeatIn f)
+    {
+        on_heartbeat_ = std::move(f);
     }
     /// @brief The daemon identity this hub accepts registrations from.
     /// @return The accepted spoke identity.
@@ -505,6 +539,7 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
         SpokeFrame sf;
         while (open.load() && stream->Read(&sf))
         {
+            if (sf.has_heartbeat() && on_heartbeat_) on_heartbeat_(sf.heartbeat());
             if (ingest_) ingest_(to_generic(sf));
         }
         open = false;
@@ -553,6 +588,7 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     std::atomic<bool> registered_{false}; ///< Current registration state.
     std::atomic<bool> refused_{false}; ///< Latched on a proto-version refusal.
     RegistrationFn on_register_; ///< Registration-reporting callback.
+    HeartbeatIn on_heartbeat_; ///< Application heartbeat callback.
 };
 
 // ---- istate ↔ HQ session client (HqPeer) ----

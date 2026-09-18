@@ -121,6 +121,10 @@ message BudgetsReply { repeated BudgetStatus budgets = 1; }
 // Configuration is a gRPC-over-UDS client of istate, architecturally
 // identical to a spoke (REQ §3.3). It holds no device state.
 service ConfigurationApi {
+  rpc Heartbeat(common.Heartbeat) returns (common.HeartbeatAck);
+  rpc GetPeerStatus(ListSpokesRequest) returns (common.PeerStatusList);
+  rpc ListOperations(ListSpokesRequest) returns (common.OperationDescriptorList);
+  rpc Control(common.ControlRequest) returns (common.ControlReply);
   rpc GetSystemInfo(SystemInfoRequest) returns (SystemInfo);
   rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
   rpc SetConfig(SetConfigRequest) returns (SetConfigReply);
@@ -224,6 +228,9 @@ message DeviceFrame {
     logmanager.BundleHandle log_ref         = 6;
     string canary_json                      = 7;  // fault rate, health score, version
     common.LivenessPong pong                = 8;
+    common.Heartbeat heartbeat               = 9;
+    common.HeartbeatAck heartbeat_ack        = 10;
+      common.ControlReply control_reply       = 11;
   }
 }
 
@@ -236,6 +243,9 @@ message HqFrame {
     common.Command command            = 5;  // generic relay to a spoke
     common.EnrollReply enroll_reply   = 6;
     common.WgTunnel tunnel_config     = 7;
+      common.HeartbeatAck heartbeat_ack        = 8;
+      common.Heartbeat heartbeat               = 9;
+      common.ControlRequest control             = 10;
   }
 }
 

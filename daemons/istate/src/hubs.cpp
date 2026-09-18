@@ -28,6 +28,16 @@
 #include "instr/istate/hubs.h"
 
 #include "instr/common/version_gen.h"
+#include "instr/alarms/daemon.h"
+#include "instr/backup/daemon.h"
+#include "instr/faults/daemon.h"
+#include "instr/hardware/daemon.h"
+#include "instr/logmanager/daemon.h"
+#include "instr/monitord/table.h"
+#include "instr/networkd/daemon.h"
+#include "instr/ota/daemon.h"
+#include "instr/telemetry/daemon.h"
+#include "instr/istate/table.h"
 
 #include <grp.h>
 #include <pwd.h>
@@ -43,6 +53,31 @@ namespace instr
 /// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
+
+namespace
+{
+struct OperationCatalogEntry
+{
+    std::string daemon;
+    CommandTable table;
+};
+
+std::vector<OperationCatalogEntry> operation_catalog()
+{
+    return {
+        {"istate", build_istate_table(nullptr)},         {"networkd", networkd::build_networkd_table(nullptr)}, {"monitord", monitord::build_monitor_table(nullptr)}, {"hardware", hardware::build_hardware_table(nullptr)},
+        {"faults", faults::build_faults_table(nullptr)}, {"alarms", alarms::build_alarms_table(nullptr)},       {"logmanager", logmanager::build_log_table(nullptr)}, {"telemetry", telemetry::build_telemetry_table(nullptr)},
+        {"ota", ota::build_ota_table(nullptr)},          {"backup", backup::build_backup_table(nullptr)},
+    };
+}
+
+bool control_allowed(const std::string& actor, const std::string& op)
+{
+    if (actor != "configuration" && actor != "hq" && actor != "local") return false;
+    if (actor == "hq" && (op == "reset" || op == "factory-reset" || op == "restart" || op == "stop" || op == "start" || op == "apply-artifact" || op == "rollback")) return false;
+    return true;
+}
+} // namespace
 
 using transport::GenericHubMsg;
 using transport::GenericSpokeMsg;
@@ -202,6 +237,7 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class TypedH
         // schema mismatch has to raise an alarm rather than being refused in
         // silence (§3.1, §11).
         this->set_registration_fn([&core](const common::RegistrationRequest& req, bool accepted) { core.on_spoke_registration(req, accepted); });
+        this->set_heartbeat_fn([&core, daemon](const common::Heartbeat& hb) { core.on_spoke_heartbeat(daemon, hb); });
     }
     // Forward hub frames to this spoke's open channel.
     /// @brief Forward a hub message to this spoke's open channel.
@@ -881,6 +917,95 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
     /// @param core istate core.
     explicit ConfigurationApiImpl(IstateCore& core) : core_(core)
     {
+    }
+
+    grpc::Status Heartbeat(grpc::ServerContext*, const common::Heartbeat* req, common::HeartbeatAck* reply) override
+    {
+        if (req->peer() != "configuration") return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "heartbeat peer must be configuration");
+        core_.on_spoke_heartbeat("configuration", *req);
+        reply->set_sequence(req->sequence());
+        reply->set_mono_ns(core_.clock().mono_ns());
+        return grpc::Status::OK;
+    }
+
+    grpc::Status GetPeerStatus(grpc::ServerContext*, const istate::ListSpokesRequest*, common::PeerStatusList* reply) override
+    {
+        const auto now = core_.clock().mono_ns();
+        for (const char* name : {"networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup", "configuration", "hq"})
+        {
+            auto* p = reply->add_peers();
+            p->set_peer(name);
+            p->set_kind(std::string(name) == "configuration" ? common::PEER_CONFIGURATION : std::string(name) == "hq" ? common::PEER_HQ : common::PEER_SPOKE);
+            const auto last = core_.last_heartbeat_mono_ns(name);
+            p->set_last_mono_ns(last);
+            p->set_last_sequence(core_.last_heartbeat_sequence(name));
+            const bool recent = last != 0 && now >= last && now - last <= 30'000'000'000ull;
+            p->set_connected(recent);
+            p->set_operational(recent);
+            p->set_state(recent ? "operational" : "unresponsive");
+        }
+        return grpc::Status::OK;
+    }
+
+    grpc::Status ListOperations(grpc::ServerContext*, const istate::ListSpokesRequest*, common::OperationDescriptorList* reply) override
+    {
+        for (const auto& entry : operation_catalog())
+            for (const auto* spec : entry.table.all())
+            {
+                auto* op = reply->add_operations();
+                op->set_daemon(entry.daemon);
+                op->set_op(spec->op);
+                op->set_description(spec->description);
+                op->set_authorization(spec->op == "factory-reset" ? "local-only" : "configuration-or-hq");
+                for (const auto& arg : spec->args)
+                    if (arg.required) op->add_required_args(arg.name);
+            }
+        return grpc::Status::OK;
+    }
+
+    grpc::Status Control(grpc::ServerContext*, const common::ControlRequest* req, common::ControlReply* reply) override
+    {
+        reply->set_request_id(req->request_id());
+        reply->set_actor(req->actor());
+        if (!control_allowed(req->actor(), req->op()))
+        {
+            reply->set_ok(false);
+            reply->set_code("permission-denied");
+            reply->set_message("operation is not permitted for actor " + req->actor());
+            return grpc::Status::OK;
+        }
+        common::Command cmd;
+        cmd.set_id(req->request_id());
+        cmd.set_op(req->op());
+        cmd.set_json_args(req->json_args());
+        cmd.set_issued_by(req->actor());
+        auto fut = core_.relay_command(req->daemon(), cmd);
+        const auto deadline = req->deadline_ms() == 0 ? 5000 : std::min(req->deadline_ms(), 30000u);
+        if (fut.wait_for(std::chrono::milliseconds(deadline)) != std::future_status::ready)
+        {
+            reply->set_ok(false);
+            reply->set_code("deadline-exceeded");
+            reply->set_message("daemon " + req->daemon() + " did not respond");
+            return grpc::Status::OK;
+        }
+        auto parsed = json_parse(fut.get());
+        if (!parsed.ok())
+        {
+            reply->set_ok(false);
+            reply->set_code("invalid-response");
+            reply->set_message(parsed.error.message);
+            return grpc::Status::OK;
+        }
+        reply->set_ok((*parsed).get_bool("ok"));
+        if (const auto* error = (*parsed).find("error"))
+        {
+            reply->set_code(error->get_string("code"));
+            reply->set_message(error->get_string("message"));
+        }
+        if (const auto* data = (*parsed).find("data")) reply->set_json_payload(data->dump());
+        core_.audit().append(req->actor(), "peer-control", req->daemon() + "." + req->op(), req->json_args(), core_.clock());
+        core_.audit().persist();
+        return grpc::Status::OK;
     }
 
     /// @brief Configuration/Application API: system info for the peer.
@@ -1593,12 +1718,69 @@ bool HqClient::try_session()
 
     // Reader thread: HQ frames (config push / OTA command / backpressure).
     std::atomic<bool> open{true};
+    std::mutex write_mu;
     // Reader thread: drains HQ replies so the writer never blocks on a full stream buffer.
-    std::thread reader([this, &rw, &open] {
+    std::thread reader([this, &rw, &open, &write_mu] {
         istate::HqFrame hf;
         while (open.load() && rw->Read(&hf))
         {
-            if (hf.has_backpressure()) { core_.set_hq_backpressure(hf.backpressure().pause()); }
+            if (hf.has_heartbeat())
+            {
+                istate::DeviceFrame ack;
+                ack.mutable_heartbeat_ack()->set_sequence(hf.heartbeat().sequence());
+                ack.mutable_heartbeat_ack()->set_mono_ns(core_.clock().mono_ns());
+                std::lock_guard<std::mutex> lk(write_mu);
+                if (!rw->Write(ack)) open = false;
+            }
+            else if (hf.has_control())
+            {
+                const auto& request = hf.control();
+                common::Command command;
+                command.set_id(request.request_id());
+                command.set_op(request.op());
+                command.set_json_args(request.json_args());
+                command.set_issued_by("hq");
+                istate::DeviceFrame result;
+                auto* reply = result.mutable_control_reply();
+                reply->set_request_id(request.request_id());
+                reply->set_actor("hq");
+                if (!control_allowed("hq", request.op()))
+                {
+                    reply->set_code("permission-denied");
+                    reply->set_message("operation is not permitted for HQ");
+                }
+                else
+                {
+                    auto future = core_.relay_command(request.daemon(), command);
+                    if (future.wait_for(std::chrono::milliseconds(request.deadline_ms() == 0 ? 5000 : request.deadline_ms())) != std::future_status::ready)
+                    {
+                        reply->set_code("deadline-exceeded");
+                        reply->set_message("daemon " + request.daemon() + " did not respond");
+                    }
+                    else
+                    {
+                        auto parsed = json_parse(future.get());
+                        if (parsed.ok())
+                        {
+                            reply->set_ok((*parsed).get_bool("ok"));
+                            if (const auto* data = (*parsed).find("data")) reply->set_json_payload(data->dump());
+                            if (const auto* error = (*parsed).find("error"))
+                            {
+                                reply->set_code(error->get_string("code"));
+                                reply->set_message(error->get_string("message"));
+                            }
+                        }
+                        else
+                        {
+                            reply->set_code("invalid-response");
+                            reply->set_message(parsed.error.message);
+                        }
+                    }
+                }
+                std::lock_guard<std::mutex> lk(write_mu);
+                if (!rw->Write(result)) open = false;
+            }
+            else if (hf.has_backpressure()) { core_.set_hq_backpressure(hf.backpressure().pause()); }
             else if (hf.has_config_push())
             {
                 // Signed config push verified on device (§9).
@@ -1630,8 +1812,29 @@ bool HqClient::try_session()
 
     // Writer: drain the northbound spool while connected (with pacing so a
     // fleet booting together honours backpressure, §11).
+    auto next_heartbeat = std::chrono::steady_clock::now();
+    uint64_t heartbeat_sequence = 0;
     while (open.load() && running_.load())
     {
+        if (std::chrono::steady_clock::now() >= next_heartbeat)
+        {
+            istate::DeviceFrame heartbeat;
+            auto* hb = heartbeat.mutable_heartbeat();
+            hb->set_peer("istate");
+            hb->set_sequence(++heartbeat_sequence);
+            hb->set_mono_ns(core_.clock().mono_ns());
+            hb->set_ready(true);
+            hb->set_health(common::HEALTH_PASS);
+            {
+                std::lock_guard<std::mutex> lk(write_mu);
+                if (!rw->Write(heartbeat))
+                {
+                    open = false;
+                    break;
+                }
+            }
+            next_heartbeat = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        }
         if (core_.hq_backpressured())
         {
             struct timespec ts

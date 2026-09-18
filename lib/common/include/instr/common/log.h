@@ -31,10 +31,12 @@
 
 #pragma once
 #include <mutex>
+#include <fstream>
 #include <deque>
 #include <functional>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "instr/common/timestamps.h"
@@ -94,6 +96,48 @@ class StderrSink : public ISink
     /// @brief Consume one accepted log record.
     /// @param r Record to write; the sink must not retain a reference past the call.
     void write(const LogRecord&) override;
+};
+
+/// @brief Structured line sink backed by one daemon's log file.
+class FileSink : public ISink
+{
+  public:
+    /// @brief Open @p path, creating parent directories when possible.
+    /// @param path Destination file.
+    explicit FileSink(const std::string& path, uint64_t max_bytes = 8ull * 1024 * 1024);
+    ~FileSink() override;
+    /// @brief True when the file was opened successfully.
+    bool available() const
+    {
+        return file_.is_open();
+    }
+    /// @brief Write one redacted record as one line.
+    void write(const LogRecord&) override;
+
+  private:
+    std::mutex mu_;
+    std::ofstream file_;
+    std::string path_;
+    uint64_t max_bytes_;
+};
+
+/// @brief Fan-out sink used during the file-logging migration.
+class TeeSink : public ISink
+{
+  public:
+    explicit TeeSink(std::vector<ISink*> sinks) : sinks_(std::move(sinks))
+    {
+    }
+    void write(const LogRecord& r) override
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        for (auto* sink : sinks_)
+            if (sink) sink->write(r);
+    }
+
+  private:
+    std::mutex mu_;
+    std::vector<ISink*> sinks_;
 };
 
 /// @brief Bounded in-memory ring; used by tests and crash forensics.

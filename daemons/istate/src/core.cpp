@@ -59,6 +59,38 @@ IstateCore::IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform&
     budgets_.set_budget("backup", uint64_t(opts_.budget_backup));
 }
 
+void IstateCore::on_spoke_heartbeat(const std::string& daemon, const common::Heartbeat& heartbeat)
+{
+    if (heartbeat.peer() != daemon)
+    {
+        log_.warning("istate.heartbeat", "heartbeat peer mismatch", {{"expected", daemon}, {"reported", heartbeat.peer()}});
+        return;
+    }
+    std::lock_guard<std::mutex> lk(heartbeat_mu_);
+    const uint64_t previous = heartbeat_sequences_[daemon];
+    if (heartbeat.sequence() <= previous)
+    {
+        log_.warning("istate.heartbeat", "stale heartbeat rejected", {{"daemon", daemon}, {"sequence", std::to_string(heartbeat.sequence())}});
+        return;
+    }
+    heartbeat_sequences_[daemon] = heartbeat.sequence();
+    heartbeat_mono_ns_[daemon] = heartbeat.mono_ns();
+}
+
+uint64_t IstateCore::last_heartbeat_sequence(const std::string& daemon) const
+{
+    std::lock_guard<std::mutex> lk(heartbeat_mu_);
+    auto it = heartbeat_sequences_.find(daemon);
+    return it == heartbeat_sequences_.end() ? 0 : it->second;
+}
+
+uint64_t IstateCore::last_heartbeat_mono_ns(const std::string& daemon) const
+{
+    std::lock_guard<std::mutex> lk(heartbeat_mu_);
+    auto it = heartbeat_mono_ns_.find(daemon);
+    return it == heartbeat_mono_ns_.end() ? 0 : it->second;
+}
+
 /// @brief Mount, provision, seed and start the fleet in dependency order.
 /// @param default_yaml Image default YAML per daemon.
 /// @return True when the platform is usable; false only when unusable.

@@ -23,3 +23,6 @@ foreach(pair IN LISTS TOOLS)
     INSTR_CTRL_PROG="${prog}"
     INSTR_CTRL_SOCKET="/run/instrumentation/${daemon}-ctrl.sock")
 endforeach()
+
+add_executable(instr-istate-watchdog istate_watchdog.cpp)
+target_link_libraries(instr-istate-watchdog PRIVATE instr_common)

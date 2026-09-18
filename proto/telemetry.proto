@@ -39,6 +39,7 @@ message TelemetrySpokeFrame {
     string status_json          = 4;
     common.ConfigRequest config_request = 5;
     common.ConfigAck config_ack = 6;
+    common.Heartbeat heartbeat = 7;
   }
 }
 
@@ -49,6 +50,7 @@ message TelemetryHubFrame {
     common.RelayedData relay    = 3;  // monitord samples, hardware results, fault rates
     common.TimeStamp time_sync  = 4;
     common.ConfigDelivery config = 5;
+    common.HeartbeatAck heartbeat_ack = 6;
   }
 }
 

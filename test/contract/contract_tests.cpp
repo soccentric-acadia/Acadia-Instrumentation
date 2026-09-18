@@ -84,7 +84,7 @@ TEST(ContractHandshake, SchemaVersionIsSuiteWide)
     // conscious act paired with a regenerated descriptor golden above.
     //   v1 → v2: spokes receive their configuration over the channel (§9),
     //            so a v1 spoke against a v2 istate would run unconfigured.
-    EXPECT_EQ(transport::kProtoSchemaVersion, 2u);
+    EXPECT_EQ(transport::kProtoSchemaVersion, 3u);
 }
 
 /// @brief Registration requests carry the fields the orchestrator records; mismatches are refused.

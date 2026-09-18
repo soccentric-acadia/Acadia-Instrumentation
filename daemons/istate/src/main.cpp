@@ -29,6 +29,7 @@
  */
 
 #include <cstdio>
+#include <fstream>
 #include <set>
 
 #include "instr/alarms_gen.h"
@@ -86,7 +87,10 @@ int main(int argc, char** argv)
     }
     std::atomic<bool> stop{false};
     instr::install_signal_handlers(stop);
-    instr::StderrSink sink;
+    instr::StderrSink stderr_sink;
+    const std::string log_root = args.root.empty() ? "/var/log/instrumentation" : args.root + "/var/log/instrumentation";
+    instr::FileSink file_sink(log_root + "/istate.log");
+    instr::TeeSink sink({&stderr_sink, &file_sink});
     instr::SystemTimeSource ts;
     instr::Logger log(sink, ts);
 
@@ -94,6 +98,7 @@ int main(int argc, char** argv)
     std::string run_dir = root + "/run/instrumentation";
     instr::NativeFileSystem fs;
     fs.mkdirs(run_dir);
+    const std::string health_path = run_dir + "/istate.health";
 
     instr::istate::IstateOptions opts;
     opts.pst_root = root + "/pst";
@@ -160,6 +165,20 @@ int main(int argc, char** argv)
     instr::run_until_stop(
         stop,
         [&] {
+            // The independent software watchdog observes this atomically
+            // replaced progress marker. It has no reboot or restart path.
+            {
+                const std::string tmp = health_path + ".tmp";
+                std::ofstream health(tmp, std::ios::trunc);
+                if (health)
+                {
+                    health << ts.mono_ns() << '\n';
+                    health.flush();
+                    health.close();
+                    if (std::rename(tmp.c_str(), health_path.c_str()) != 0) log.warning("istate", "software watchdog health marker replace failed");
+                }
+                else { log.warning("istate", "software watchdog health marker unavailable", {{"path", health_path}}); }
+            }
             auto evs = core.orchestrator().liveness_sweep(double(ts.mono_ns()) / 1e9, core.options().liveness_hang_timeout_s);
             for (const auto& ev : evs)
             {

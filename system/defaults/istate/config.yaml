@@ -5,3 +5,6 @@ ntp_servers: [pool.ntp.org]
 ptp_domain: 0
 gnss_constellations: [gps, galileo, glonass, beidou]
 hq_endpoint: hq.arches.example:51820
+heartbeat_interval_s: 5
+heartbeat_warning_timeout_s: 15
+heartbeat_failure_timeout_s: 30

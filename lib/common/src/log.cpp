@@ -30,6 +30,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
+#include <iomanip>
 
 namespace instr
 {
@@ -80,6 +82,41 @@ void StderrSink::write(const LogRecord& r)
     std::fprintf(stderr, "%s %s %s: %s", tbuf, log_level_name(r.level), r.source.c_str(), r.message.c_str());
     for (const auto& kv : r.fields) std::fprintf(stderr, " %s=%s", kv.first.c_str(), kv.second.c_str());
     std::fprintf(stderr, "\n");
+}
+
+FileSink::FileSink(const std::string& path, uint64_t max_bytes) : path_(path), max_bytes_(max_bytes)
+{
+    std::error_code ec;
+    const auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) std::filesystem::create_directories(parent, ec);
+    file_.open(path, std::ios::out | std::ios::app);
+}
+
+FileSink::~FileSink()
+{
+    std::lock_guard<std::mutex> lk(mu_);
+    file_.flush();
+}
+
+void FileSink::write(const LogRecord& r)
+{
+    std::lock_guard<std::mutex> lk(mu_);
+    if (!file_.is_open()) return;
+    if (max_bytes_ > 0)
+    {
+        file_.seekp(0, std::ios::end);
+        if (static_cast<uint64_t>(file_.tellp()) >= max_bytes_)
+        {
+            file_.close();
+            std::error_code ec;
+            std::filesystem::rename(path_, path_ + ".1", ec);
+            file_.open(path_, std::ios::out | std::ios::trunc);
+        }
+    }
+    file_ << r.mono_ns << ' ' << (r.wall_valid ? std::to_string(r.wall_ns) : "-") << ' ' << log_level_name(r.level) << ' ' << r.source << ": " << r.message;
+    for (const auto& kv : r.fields) file_ << ' ' << kv.first << '=' << kv.second;
+    file_ << '\n';
+    file_.flush();
 }
 
 /// @brief Consume one accepted log record.

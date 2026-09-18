@@ -31,6 +31,7 @@
 
 #pragma once
 #include <memory>
+#include <map>
 #include <mutex>
 
 #include "instr/common/log.h"
@@ -208,6 +209,13 @@ class IstateCore
     /// fanout + spool refs, ota/backup events → timeline.
     /// @param msg Spoke frame routed by type.
     void on_spoke_msg(const transport::GenericSpokeMsg& msg);
+
+    /// @brief Record an application heartbeat received from a spoke.
+    void on_spoke_heartbeat(const std::string& daemon, const common::Heartbeat& heartbeat);
+
+    /// @brief Return the last accepted heartbeat sequence for a peer.
+    uint64_t last_heartbeat_sequence(const std::string& daemon) const;
+    uint64_t last_heartbeat_mono_ns(const std::string& daemon) const;
 
     /// @brief Spoke command relay (Configuration → spoke, §3.3): correlated acks.
     struct PendingRelay
@@ -402,6 +410,10 @@ class IstateCore
     mutable std::mutex config_mu_;     ///< Guards config_revisions_/config_acks_.
     std::map<std::string, uint64_t> config_revisions_;    ///< Delivered revision per daemon.
     std::map<std::string, ConfigAckState> config_acks_;   ///< Last ack per daemon.
+
+    mutable std::mutex heartbeat_mu_;  ///< Guards heartbeat state.
+    std::map<std::string, uint64_t> heartbeat_sequences_; ///< Last accepted sequence per peer.
+    std::map<std::string, uint64_t> heartbeat_mono_ns_;   ///< Last accepted monotonic timestamp.
 
     std::map<uint64_t, std::shared_ptr<PendingRelay>> pending_relays_;   ///< In-flight command relays.
     std::mutex relay_mu_;              ///< Guards pending_relays_.

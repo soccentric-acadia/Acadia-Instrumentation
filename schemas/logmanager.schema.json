@@ -34,6 +34,18 @@
       "type": "number",
       "minimum": 0
     },
+    "daemon_log_dir": {
+      "type": "string",
+      "description": "Directory containing one isolated file per daemon."
+    },
+    "daemon_log_rotate_size_bytes": {
+      "type": "integer",
+      "minimum": 1024
+    },
+    "daemon_log_retention_files": {
+      "type": "integer",
+      "minimum": 1
+    },
     "coredump_max_bytes": {
       "type": "integer",
       "minimum": 0

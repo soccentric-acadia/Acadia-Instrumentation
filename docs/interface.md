@@ -26,7 +26,7 @@ Messages: `BackupEvent`, `RestorePreviewEntry`, `BackupSpokeFrame`, `BackupHubFr
 
 ## common.proto (package `instr.common`)
 
-Messages: `TimeStamp`, `RegistrationRequest`, `RegistrationReply`, `Command`, `Ack`, `Backpressure`, `LivenessPing`, `LivenessPong`, `RelayedData`, `WgTunnel`, `EnrollRequest`, `EnrollReply`, `ConfigDelivery`, `ConfigRequest`, `ConfigAck`, `SignedConfig`
+Messages: `TimeStamp`, `RegistrationRequest`, `RegistrationReply`, `Command`, `Ack`, `Backpressure`, `LivenessPing`, `LivenessPong`, `Heartbeat`, `HeartbeatAck`, `PeerStatus`, `PeerStatusList`, `OperationDescriptor`, `OperationDescriptorList`, `ControlRequest`, `ControlReply`, `RelayedData`, `WgTunnel`, `EnrollRequest`, `EnrollReply`, `ConfigDelivery`, `ConfigRequest`, `ConfigAck`, `SignedConfig`
 
 ## faults.proto (package `instr.faults`)
 
@@ -58,6 +58,10 @@ Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot
 
 | RPC | request | response | streaming |
 |-----|---------|----------|-----------|
+| `Heartbeat` | `common.Heartbeat` | `common.HeartbeatAck` | unary |
+| `GetPeerStatus` | `ListSpokesRequest` | `common.PeerStatusList` | unary |
+| `ListOperations` | `ListSpokesRequest` | `common.OperationDescriptorList` | unary |
+| `Control` | `common.ControlRequest` | `common.ControlReply` | unary |
 | `GetSystemInfo` | `SystemInfoRequest` | `SystemInfo` | unary |
 | `GetConfig` | `GetConfigRequest` | `ConfigSnapshot` | unary |
 | `SetConfig` | `SetConfigRequest` | `SetConfigReply` | unary |

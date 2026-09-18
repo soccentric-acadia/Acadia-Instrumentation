@@ -11,7 +11,7 @@ ExecStart=/usr/bin/instr-hardware
 Restart=on-failure
 RestartSec=2s
 # Device access only (§10).
-ReadWritePaths=/run/instrumentation
+ReadWritePaths=/run/instrumentation /var/log/instrumentation
 User=instr-hardware
 Group=instr
 ProtectSystem=strict

@@ -13,7 +13,7 @@ RestartSec=2s
 # network administration capability only (§10).
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
-ReadWritePaths=/run/instrumentation /etc/instrumentation
+ReadWritePaths=/run/instrumentation /etc/instrumentation /var/log/instrumentation
 User=instr-networkd
 Group=instr
 ProtectSystem=strict
