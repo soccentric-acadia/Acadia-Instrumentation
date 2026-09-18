@@ -29,7 +29,7 @@ deployment decision before code can safely land.
 | 11 | Device-initiated connection | AgentLink server | AgentLink client | HqPeer client | Connectivity | Partial |
 | 12 | Shared device protocol source | HQ proto copy | Configuration proto copy | Separate istate proto | Contract owner | Missing |
 | 13 | Protocol version negotiation | Implemented | Implemented | Registration version | Compatibility | Partial |
-| 14 | Descriptor/hash negotiation | Missing | Missing | Descriptor artifacts | Compatibility | Missing |
+| 14 | Descriptor/hash negotiation | Missing | Missing | Descriptor artifacts | Compatibility | Partial |
 | 15 | Capability negotiation | Device model partial | Board manifest | Peer/catalog capabilities | Compatibility | Partial |
 | 16 | Device boot ID | Implemented | Implemented | Heartbeat support | Liveness | Partial |
 | 17 | Monotonic heartbeat sequence | Implemented | Implemented | Instrumentation heartbeat | Liveness | Partial |
@@ -64,9 +64,9 @@ deployment decision before code can safely land.
 | 46 | Failed state | Rollout-specific | Ack only | ControlReply | Commands | Partial |
 | 47 | Expired state | Implemented | Missing | Deadline support | Commands | Partial |
 | 48 | Operation discovery | Implemented | Implemented | Catalog APIs | Commands | Partial |
-| 49 | Catalog revision | Missing | Missing | Catalog source | Compatibility | Missing |
-| 50 | Catalog hash | Missing | Missing | Descriptor support | Compatibility | Missing |
-| 51 | Generic daemon operation | Typed HQ enum | Typed agent enum | Generic relay | Commands | Missing |
+| 49 | Catalog revision | Missing | Missing | Catalog source | Compatibility | Partial |
+| 50 | Catalog hash | Missing | Missing | Descriptor support | Compatibility | Partial |
+| 51 | Generic daemon operation | Typed HQ enum | Typed agent enum | Generic relay | Commands | Partial |
 | 52 | Backup operation | Queued | Unsupported handler | Backup spoke | Backup | Partial |
 | 53 | Restore operation | Queued | Unsupported handler | Backup spoke | Backup | Partial |
 | 54 | Factory reset | API/policy partial | Unsupported handler | Reset RPC | Safety | Partial |
@@ -98,13 +98,13 @@ deployment decision before code can safely land.
 | 80 | Local UDS authentication | N/A | Missing client | Socket permissions | Security | Partial |
 | 81 | Application UDS group policy | N/A | N/A | sysusers/socket policy | Security | Partial |
 | 82 | Tenant/device authorization | Implemented | Local authorization | Final device policy | Security | Partial |
-| 83 | Operation classification | Missing | Missing | Partial policy | Safety | Missing |
-| 84 | Local-only operation denial | Missing | Missing | Policy hooks | Safety | Missing |
-| 85 | Manufacturing-only denial | Missing | Missing | Reset gate | Safety | Partial |
-| 86 | Confirmation enforcement | API partial | UI confirmation | Reset confirmation | Safety | Partial |
-| 87 | JSON argument validation | Missing | Missing | Control validation | Safety | Missing |
-| 88 | Argument size limits | Missing | Missing | Transport limits | Safety | Missing |
-| 89 | Result payload size limits | Missing | Missing | Control reply | Safety | Missing |
+| 83 | Operation classification | Missing | Missing | Implemented policy | Safety | Partial |
+| 84 | Local-only operation denial | Missing | Missing | Implemented policy hooks | Safety | Partial |
+| 85 | Manufacturing-only denial | Missing | Missing | Implemented reset gate | Safety | Partial |
+| 86 | Confirmation enforcement | API partial | UI confirmation | Implemented reset confirmation | Safety | Partial |
+| 87 | JSON argument validation | Missing | Partial | Implemented control validation | Safety | Partial |
+| 88 | Argument size limits | Missing | Partial | Implemented transport limits | Safety | Partial |
+| 89 | Result payload size limits | Missing | Missing | Implemented control reply limit | Safety | Partial |
 | 90 | Stable machine error codes | Partial | Missing | Partial | Errors | Missing |
 | 91 | UNAUTHENTICATED mapping | Gateway | Agent error | Peer error | Errors | Partial |
 | 92 | PERMISSION_DENIED mapping | API auth | Missing | Policy | Errors | Missing |
