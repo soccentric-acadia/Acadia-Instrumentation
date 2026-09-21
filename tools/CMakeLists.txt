@@ -26,3 +26,16 @@ endforeach()
 
 add_executable(instr-istate-watchdog istate_watchdog.cpp)
 target_link_libraries(instr-istate-watchdog PRIVATE instr_common)
+
+# ---- standalone PREEMPT_RT demonstration app (task 005) ----
+# Not a daemon: a one-shot diagnostic run by an operator on a target or a
+# developer on a host. Core/main split so the statistics, identity parsing
+# and report serialisation are unit-testable without real timing (shared CI
+# runners must never gate on measured latency values). Links only
+# instr_common, like the watchdog: no proto, no ctrl, no istate.
+add_library(instr_rttest_lib STATIC rt-test/rttest.cpp)
+target_include_directories(instr_rttest_lib PUBLIC rt-test)
+target_link_libraries(instr_rttest_lib PUBLIC instr_common)
+
+add_executable(instr-rt-test rt-test/main.cpp)
+target_link_libraries(instr-rt-test PRIVATE instr_rttest_lib)

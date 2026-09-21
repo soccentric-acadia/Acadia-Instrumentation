@@ -84,6 +84,13 @@ foreach(t pst provisioning orchestrator northbound config)
   instr_gtest_discover(unit_istate_${t})
 endforeach()
 
+# ---- standalone rt-test tool (task 005) ----
+# Pure logic only: identity parsing, statistics, report round-trip, verdict.
+# Measured latency is never asserted — CI runners cannot make that claim.
+add_executable(unit_rt_test ../tools/rt-test/test/test_rttest.cpp)
+target_link_libraries(unit_rt_test PRIVATE instr_rttest_lib)
+instr_gtest_discover(unit_rt_test)
+
 # ---- contract tests (§12): breaking .proto change fails CI ----
 add_executable(contract_protos contract/contract_tests.cpp)
 add_dependencies(contract_protos protos_golden)
