@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-21 — Version support (task 001)
+
+### Added
+
+- Added a Makefile `version` target (CONV-004) that prints the existing
+  `VERSION` file, so Make and CMake share one source of truth and the parent
+  `make versions` table covers this repository.
+
+Task records: `tasks/001-add-version-support-all-repos/`.
+
 ## 2026-09-18 — Agent documentation and task workflow standardization
 
 - Added canonical `AGENTS.md` and `CLAUDE.md` pointers plus a concise canonical

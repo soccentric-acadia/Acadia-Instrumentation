@@ -9,7 +9,7 @@ PRESET       ?= host-debug
 BUILD_DIR    := build-$(PRESET)
 
 .DEFAULT_GOAL := build
-.PHONY: help build test check-format format tidy clean
+.PHONY: help build test check-format format tidy clean version
 
 help:
 	@echo 'Arches Instrumentation — make targets (host-native, PRESET=$(PRESET)):'
@@ -18,6 +18,7 @@ help:
 	@echo '  make check-format  clang-format gate natively'
 	@echo '  make format        apply .clang-format natively'
 	@echo '  make tidy          clang-tidy natively (run-clang-tidy target)'
+	@echo '  make version       print the project version (CONV-004)'
 	@echo '  make clean         remove $(BUILD_DIR)/'
 	@echo
 	@echo 'Variables: PRESET (default host-debug; see CMakePresets.json for others)'
@@ -40,6 +41,9 @@ format:
 tidy:
 	cmake --preset $(PRESET)
 	cmake --build --preset $(PRESET) --target run-clang-tidy
+
+version: ## Print the project version (CONV-004)
+	@echo "$$(cat VERSION)"
 
 clean:
 	rm -rf $(BUILD_DIR)
