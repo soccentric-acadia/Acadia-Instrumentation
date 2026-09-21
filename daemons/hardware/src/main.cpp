@@ -66,14 +66,20 @@ int main(int argc, char** argv)
     auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
     if (!platform_known) log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
     instr::platform::IPlatform& plat = *plat_owned;
-    // Board knowledge lives in devices.yaml (data, not code).
+    // Board knowledge lives in devices.yaml (data, not code). The
+    // istate-seeded /pst copy is preferred (it survives OTA updates); the
+    // rootfs copy is the factory fallback when /pst has not been provisioned
+    // yet (task 007). Either source is schema-validated at load.
     instr::JValue schema = instr::JValue::object();
     {
         instr::NativeFileSystem fs;
-        auto txt = fs.read(root + "/etc/instrumentation/devices.yaml");
+        std::string devices_used;
+        auto txt = instr::read_first_available(
+            fs, {root + "/pst/system/hardware/devices.yaml", root + "/etc/instrumentation/devices.yaml"}, &devices_used);
         auto sch = fs.read(root + "/usr/share/instrumentation/schemas/devices.schema.json");
         if (txt.ok() && sch.ok())
         {
+            log.info("hardware", "devices.yaml loaded from " + devices_used);
             auto parsed_schema = instr::load_schema_text(*sch);
             if (parsed_schema.ok()) schema = *parsed_schema;
             auto desc = instr::platform::load_device_descriptor(*txt, schema, "devices.yaml");

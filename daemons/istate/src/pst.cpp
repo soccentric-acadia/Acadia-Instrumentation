@@ -122,18 +122,19 @@ PstStore::MountReport PstStore::mount()
     return rep;
 }
 
-/// @brief Seed system/ from the shipped default YAML set.
-/// @param daemon_default_yaml Image default YAML per daemon.
-Error PstStore::seed_defaults(const std::map<std::string, std::string>& daemon_default_yaml)
+/// @brief Seed system/ from the complete shipped default file set.
+/// @param defaults Complete image default file set per daemon.
+Error PstStore::seed_defaults(const DefaultFileSet& defaults)
 {
-    for (const auto& kv : daemon_default_yaml)
+    for (const auto& daemon : defaults)
     {
-        std::string dir = path("system/" + kv.first);
-        fs_.mkdirs(dir);
-        Error e = write_protected("system/" + kv.first + "/config.yaml", kv.second);
-        if (!e.ok()) return e;
+        for (const auto& file : daemon.second)
+        {
+            Error e = write_protected("system/" + daemon.first + "/" + file.first, file.second);
+            if (!e.ok()) return e;
+        }
     }
-    if (!fs_.exists(path("system/.schema-version"))) return set_schema_version("1");
+    if (!fs_.exists(path("system/.schema-version"))) return set_schema_version(kConfigSchemaVersion);
     return Error::none();
 }
 
@@ -204,37 +205,55 @@ Error PstStore::set_schema_version(const std::string& v)
     return write_protected("system/.schema-version", v + "\n");
 }
 
-/// @brief Merge a release's defaults, preserving existing values by origin.
-/// @param new_defaults Release default YAML per daemon.
+/// @brief Merge a release's defaults: config.yaml keys merge by origin; other default files are added only when missing.
+/// @param new_defaults Complete release default file set per daemon.
 /// @return The added paths.
-std::vector<std::string> PstStore::migrate(const std::map<std::string, std::string>& new_defaults)
+std::vector<std::string> PstStore::migrate(const DefaultFileSet& new_defaults)
 {
     std::vector<std::string> added;
-    for (const auto& kv : new_defaults)
+    for (const auto& daemon : new_defaults)
     {
-        std::string cfg_path = "system/" + kv.first + "/config.yaml";
-        ConfigDocument existing;
-        if (fs_.exists(path(cfg_path)))
+        for (const auto& file : daemon.second)
         {
-            // load_config, not a bare parse: it also reads the origins sidecar.
-            // Parsing the YAML alone drops every origin to default, so after one
-            // update an operator's edits would look like shipped defaults and the
-            // next HQ push would be free to overwrite them (§9).
-            auto cur = load_config(kv.first);
-            if (cur.ok()) existing = *cur;
+            const std::string& name = file.first;
+            const std::string& content = file.second;
+            const std::string cfg_path = "system/" + daemon.first + "/" + name;
+            if (name == "config.yaml")
+            {
+                ConfigDocument existing;
+                if (fs_.exists(path(cfg_path)))
+                {
+                    // load_config, not a bare parse: it also reads the origins sidecar.
+                    // Parsing the YAML alone drops every origin to default, so after one
+                    // update an operator's edits would look like shipped defaults and the
+                    // next HQ push would be free to overwrite them (§9).
+                    auto cur = load_config(daemon.first);
+                    if (cur.ok()) existing = *cur;
+                }
+                auto defaults = ConfigDocument::parse(content, JValue::object(), "defaults/" + daemon.first);
+                if (!defaults.ok()) continue;
+                auto added_paths = existing.merge_release(*defaults);
+                for (const auto& p : added_paths) added.push_back(daemon.first + "/" + p);
+                if (!added_paths.empty()) save_config(daemon.first, existing);
+            }
+            else
+            {
+                // Non-config data files (alarm catalog, fault rules, device
+                // descriptor, WG peer placeholder): add only when missing.
+                // An existing file may hold operator edits or istate-enrolled
+                // tunnel state, so a release never overwrites it (§6, §7.9).
+                if (fs_.exists(path(cfg_path))) continue;
+                Error e = write_protected(cfg_path, content);
+                if (e.ok()) added.push_back(cfg_path);
+            }
         }
-        auto defaults = ConfigDocument::parse(kv.second, JValue::object(), "defaults/" + kv.first);
-        if (!defaults.ok()) continue;
-        auto added_paths = existing.merge_release(*defaults);
-        for (const auto& p : added_paths) added.push_back(kv.first + "/" + p);
-        if (!added_paths.empty()) save_config(kv.first, existing);
     }
     return added;
 }
 
 /// @brief System reset: wipe system/ and state/, keep factory/ and backup/.
-/// @param defaults Image defaults for reseeding system/.
-Error PstStore::system_reset(const std::map<std::string, std::string>& defaults)
+/// @param defaults Complete image default file set for reseeding system/.
+Error PstStore::system_reset(const DefaultFileSet& defaults)
 {
     // Wipes system/ and state/; keeps factory/ and backup/ (§6.1).
     Error e = fs_.remove(path("system"), true);

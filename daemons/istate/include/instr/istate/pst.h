@@ -48,12 +48,18 @@ namespace istate
 
 /// @brief The configuration schema version this build expects in /pst.
 ///
-/// @param consumer Consumer reserving space.
-/// @param bytes Bytes to reserve.
-/// @return True when allowed, or an error when over budget.
-/// Bump it in the same commit that adds keys to system/defaults, so the first
-/// boot after an update migrates rather than silently running without them (§6, §7.9).
-inline constexpr const char* kConfigSchemaVersion = "1";
+/// Bump it in the same commit that adds keys or files to system/defaults, so
+/// the first boot after an update migrates rather than silently running
+/// without them (§6, §7.9).
+inline constexpr const char* kConfigSchemaVersion = "2";
+
+/// @brief The complete image default file set, per daemon.
+///
+/// daemon → (relative file name → contents). The image ships every default
+/// under /usr/share/instrumentation/defaults/<daemon>/ — config.yaml plus the
+/// non-config data files (alarm catalog, fault rules, device descriptor,
+/// WireGuard placeholder) that istate must seed into /pst on first use (§6).
+using DefaultFileSet = std::map<std::string, std::map<std::string, std::string>>;
 
 /// @brief Per-consumer storage budgets (§6: spool, logs, OTA staging can never fill the partition and wedge the device).
 /// @param consumer Consumer recording usage.
@@ -149,10 +155,10 @@ class PstStore
     /// @brief Mount and validate: verify checksums with fallback to redundant copies (REQ §11).
     /// @return The mount-and-validate report.
     MountReport mount();
-    /// @brief Seed system/ from the shipped default YAML set (first boot / system reset).
-    /// @param daemon_default_yaml Image default YAML per daemon.
+    /// @brief Seed system/ from the shipped default file set (first boot / system reset).
+    /// @param defaults Complete image default file set per daemon.
     /// @return ok(), or the write error.
-    Error seed_defaults(const std::map<std::string, std::string>& daemon_default_yaml);
+    Error seed_defaults(const DefaultFileSet& defaults);
 
     /// @brief Load a daemon's configuration (sole reader).
     /// @param new_defaults Release default YAML per daemon.
@@ -189,16 +195,16 @@ class PstStore
     /// @param v Schema version to record.
     /// @return ok(), or the write error.
     Error set_schema_version(const std::string& v);
-    /// @brief Merge a new release's defaults: adds missing keys, preserves existing values by origin.
+    /// @brief Merge a new release's defaults: config.yaml keys are merged with existing values preserved by origin; any other default file is added only when missing.
     ///
-    /// @param new_defaults Release default YAML per daemon.
+    /// @param new_defaults Complete release default file set per daemon.
     /// @return Added paths.
-    std::vector<std::string> migrate(const std::map<std::string, std::string>& new_defaults);
+    std::vector<std::string> migrate(const DefaultFileSet& new_defaults);
 
-    /// @brief System reset (§6.1): wipes system/ and state/; keeps factory/ and backup/; reseeds system/ from image defaults after.
-    /// @param defaults Image defaults for reseeding system/.
+    /// @brief System reset (§6.1): wipes system/ and state/; keeps factory/ and backup/; reseeds system/ from the complete image defaults after.
+    /// @param defaults Complete image default file set for reseeding system/.
     /// @return ok(), or the reset error.
-    Error system_reset(const std::map<std::string, std::string>& defaults);
+    Error system_reset(const DefaultFileSet& defaults);
     /// @brief Factory reset: everything; manufacturing operation only, explicitly gated.
     /// @return ok(), or the reset error.
     Error factory_reset();

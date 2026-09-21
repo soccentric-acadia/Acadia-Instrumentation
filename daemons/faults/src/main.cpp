@@ -68,9 +68,14 @@ int main(int argc, char** argv)
     instr::faults::FaultsCore core;
 
     // Rules are data: default set ships with the image; HQ may push new
-    // signatures as configuration (written by istate).
+    // signatures as configuration (written by istate). The istate-seeded /pst
+    // copy is preferred (it survives OTA updates); the rootfs copy is the
+    // factory fallback when /pst has not been provisioned yet (task 007).
     instr::NativeFileSystem fs;
-    auto rules_txt = fs.read(root + "/etc/instrumentation/fault-rules.yaml");
+    std::string rules_used;
+    auto rules_txt = instr::read_first_available(
+        fs, {root + "/pst/system/faults/fault-rules.yaml", root + "/etc/instrumentation/fault-rules.yaml"}, &rules_used);
+    if (rules_txt.ok()) log.info("faults", "fault rules loaded from " + rules_used);
     if (rules_txt.ok())
     {
         instr::Error e = core.load_rules(*rules_txt);

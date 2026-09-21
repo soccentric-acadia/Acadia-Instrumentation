@@ -316,4 +316,18 @@ class SimulatedFileSystem : public IFileSystem
     bool fail_mkdirs_ = false; ///< Mkdirs-failure injection.
 };
 
+/// @brief Read the first readable file among candidate paths (task 007).
+///
+/// Services prefer the istate-seeded /pst copy of a default file and fall
+/// back to the factory rootfs copy; both stay bootable when /pst is absent
+/// or unprovisioned. Candidates are tried in order; the first readable one
+/// wins — an existing but unreadable candidate falls through to the next,
+/// and the error from the last candidate is returned when nothing reads.
+///
+/// @param fs Filesystem to probe.
+/// @param candidates Paths in preference order.
+/// @param used Optional; receives the path that supplied the contents.
+/// @return The contents, or the error from the last candidate.
+Result<std::string> read_first_available(IFileSystem& fs, const std::vector<std::string>& candidates, std::string* used = nullptr);
+
 } // namespace instr

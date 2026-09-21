@@ -92,9 +92,9 @@ uint64_t IstateCore::last_heartbeat_mono_ns(const std::string& daemon) const
 }
 
 /// @brief Mount, provision, seed and start the fleet in dependency order.
-/// @param default_yaml Image default YAML per daemon.
+/// @param defaults Complete image default file set per daemon.
 /// @return True when the platform is usable; false only when unusable.
-bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml)
+bool IstateCore::boot(const DefaultFileSet& defaults)
 {
     // 1. Mount and validate /pst; corrupt → redundant copy; both fail → boot
     // unprovisioned and report, never fail to boot (§11).

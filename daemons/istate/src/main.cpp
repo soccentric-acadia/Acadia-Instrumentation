@@ -47,20 +47,27 @@
 
 namespace
 {
-// Default YAML set shipped in the image (§6: seeds /pst on first boot).
-/// @brief Load the image default YAML set for seeding and system reset.
+// Default file set shipped in the image (§6: seeds /pst on first boot with
+// every default file, not just config.yaml — task 007).
+/// @brief Load the complete image default file set for seeding and system reset.
 /// @param fs Filesystem to read from.
-/// @param dir Directory holding the default YAML set.
-/// @return The image default YAML per daemon.
-std::map<std::string, std::string> load_defaults(instr::IFileSystem& fs, const std::string& dir)
+/// @param dir Directory holding the default file set (one subdirectory per daemon).
+/// @return The complete image default file set per daemon.
+instr::istate::DefaultFileSet load_defaults(instr::IFileSystem& fs, const std::string& dir)
 {
-    std::map<std::string, std::string> out;
+    instr::istate::DefaultFileSet out;
     auto daemons = fs.list_dir(dir);
     if (!daemons.ok()) return out;
     for (const auto& d : *daemons)
     {
-        auto txt = fs.read(dir + "/" + d + "/config.yaml");
-        if (txt.ok()) out[d] = *txt;
+        auto files = fs.list_dir(dir + "/" + d);
+        if (!files.ok()) continue;
+        for (const auto& f : *files)
+        {
+            if (!f.empty() && f.front() == '.') continue;   // e.g. .gitkeep
+            auto txt = fs.read(dir + "/" + d + "/" + f);
+            if (txt.ok()) out[d][f] = *txt;
+        }
     }
     return out;
 }

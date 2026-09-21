@@ -490,4 +490,25 @@ Result<int64_t> SimulatedFileSystem::file_mtime_s(const std::string& path)
     return Result<int64_t>::good(it->second);
 }
 
+/// @brief Read the first existing file among candidate paths (task 007).
+/// @param fs Filesystem to probe.
+/// @param candidates Paths in preference order.
+/// @param used Optional; receives the path that supplied the contents.
+/// @return The contents, or the error from the last candidate.
+Result<std::string> read_first_available(IFileSystem& fs, const std::vector<std::string>& candidates, std::string* used)
+{
+    for (const auto& candidate : candidates)
+    {
+        if (!fs.exists(candidate)) continue;
+        auto contents = fs.read(candidate);
+        if (contents.ok())
+        {
+            if (used) *used = candidate;
+            return contents;
+        }
+    }
+    if (used) used->clear();
+    return Result<std::string>::fail(Errc::NotFound, "no candidate file exists: " + (candidates.empty() ? std::string("(none)") : candidates.back()), "read_first_available");
+}
+
 } // namespace instr

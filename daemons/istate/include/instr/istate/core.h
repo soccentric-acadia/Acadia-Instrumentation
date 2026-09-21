@@ -80,9 +80,9 @@ class IstateCore
     /// @brief Mount /pst, validate, seed defaults on virgin; provisioning; start the spokes in order.
     ///
     /// Returns false only when the platform is unusable.
-    /// @param default_yaml Image default YAML per daemon.
+    /// @param defaults Complete image default file set per daemon.
     /// @return True when the platform is usable; false only when unusable.
-    bool boot(const std::map<std::string, std::string>& default_yaml);
+    bool boot(const DefaultFileSet& defaults);
     /// @brief Graceful shutdown: stop spokes, persist state, write the clean marker.
     void shutdown();
 
@@ -246,9 +246,9 @@ class IstateCore
     {
         relay_to_spoke_ = std::move(f);
     }
-    /// @brief Image default YAML provider (used for seeding + system reset).
+    /// @brief Complete image default file set provider (used for seeding + system reset).
     /// @param f Image defaults provider.
-    void set_default_provider(std::function<std::map<std::string, std::string>()> f)
+    void set_default_provider(std::function<DefaultFileSet()> f)
     {
         default_provider_ = std::move(f);
     }
@@ -426,7 +426,7 @@ class IstateCore
     std::vector<std::pair<uint32_t, std::string>> pending_alarms_;
     bool observed_clean_shutdown_ = false;   ///< Result of the marker check at boot.
     RelayFn relay_to_spoke_;           ///< Hub-message relay into spoke sessions.
-    std::function<std::map<std::string, std::string>()> default_provider_;   ///< Image defaults provider.
+    std::function<DefaultFileSet()> default_provider_;   ///< Complete image defaults provider.
 };
 
 } // namespace istate
