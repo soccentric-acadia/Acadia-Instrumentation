@@ -1,22 +1,9 @@
 # Changelog
 
-## 2026-09-21 — rt-test standalone PREEMPT_RT demonstration app (task 005)
+## 2026-09-21 — Root-agent feature workflow guard (task 006)
 
-### Added
-
-- `tools/rt-test/`: one-shot diagnostic app (not a daemon) that detects the
-  kernel scheduling model (PREEMPT_RT vs stock) and runs the timing tests
-  PREEMPT_RT improves: cyclictest-style 1 kHz wakeup latency (idle + under
-  synthetic CPU/memory/IO load), bounded priority-inversion scenario with
-  and without PTHREAD_PRIO_INHERIT, pipe ping-pong wakeup roundtrip,
-  10 kHz timer jitter, threaded-IRQ census.
-- Human-readable comparison table on stdout; machine-readable JSON result
-  file per run (`rt-test-results-<UTC timestamp>.json`, `--out` override).
-- `instr_rttest_lib` + `instr-rt-test` CMake wiring (links only
-  `instr_common`); 16 unit tests over the pure logic (identity parsing,
-  statistics, report round-trip, verdict, degraded SCHED_OTHER path).
-- No proto, contract, schema, systemd, or istate surface touched; the
-  contract-test suite passes untouched.
+- Added a canonical instruction requiring leaf-started agents to refuse feature
+  changes and direct the user to the Acadia parent root.
 
 ## 2026-09-21 — Version support (task 001)
 
