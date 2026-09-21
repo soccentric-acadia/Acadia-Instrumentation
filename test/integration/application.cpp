@@ -141,10 +141,10 @@ struct AppTopology
         }
     }
 
-    std::map<std::string, std::string> defaults() const
+    DefaultFileSet defaults() const
     {
-        std::map<std::string, std::string> d;
-        for (const char* x : {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"}) d[x] = "enabled: true\n";
+        DefaultFileSet d;
+        for (const char* x : {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"}) d[x]["config.yaml"] = "enabled: true\n";
         return d;
     }
 

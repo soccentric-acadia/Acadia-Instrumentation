@@ -148,11 +148,19 @@ int main(int argc, char** argv)
     // Rotation, retention and the storage budget are enforced on a timer, not
     // when someone happens to ask (§7.7): the budget exists to stop logs
     // wedging the device, which only works if it is applied continuously.
+    // The same pass rotates the daemons' own FileSink logs under the
+    // configured daemon_log_* policy, which nothing else enforces.
+    instr::logmanager::DaemonLogRotator rotator(fs);
+    rotator.configure(core.config().daemon_logs);
     instr::PeriodicWorker prune("logmanager-prune", core.config().prune_interval_s, [&] {
         auto st = core.store().enforce_retention(ts.mono_ns());
-        if (st.files_removed) log.info("logmanager", "pruned " + std::to_string(st.files_removed) + " files, " + std::to_string(st.bytes_freed) + " bytes");
+        size_t daemon_rotated = rotator.enforce();
+        if (st.files_removed || daemon_rotated) log.info("logmanager", "pruned " + std::to_string(st.files_removed) + " files, " + std::to_string(st.bytes_freed) + " bytes, rotated " + std::to_string(daemon_rotated) + " daemon logs");
     });
-    core.set_config_listener([&](const instr::logmanager::LogCore::Config& c) { prune.set_interval_s(c.enabled ? c.prune_interval_s : 0.0); });
+    core.set_config_listener([&](const instr::logmanager::LogCore::Config& c) {
+        prune.set_interval_s(c.enabled ? c.prune_interval_s : 0.0);
+        rotator.configure(c.daemon_logs);
+    });
     prune.start();
 
     // Collection (§7.7). Without this the store is never written to and every

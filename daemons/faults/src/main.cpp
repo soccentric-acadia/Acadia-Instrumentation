@@ -73,8 +73,7 @@ int main(int argc, char** argv)
     // factory fallback when /pst has not been provisioned yet (task 007).
     instr::NativeFileSystem fs;
     std::string rules_used;
-    auto rules_txt = instr::read_first_available(
-        fs, {root + "/pst/system/faults/fault-rules.yaml", root + "/etc/instrumentation/fault-rules.yaml"}, &rules_used);
+    auto rules_txt = instr::read_first_available(fs, {root + "/pst/system/faults/fault-rules.yaml", root + "/etc/instrumentation/fault-rules.yaml"}, &rules_used);
     if (rules_txt.ok()) log.info("faults", "fault rules loaded from " + rules_used);
     if (rules_txt.ok())
     {

@@ -43,13 +43,13 @@ struct PstFixture
     SimulatedFileSystem fs;
     BudgetManager budgets{fs, "/pst"};
     PstStore pst{fs, "/pst", budgets};
-    std::map<std::string, std::string> defaults;
+    DefaultFileSet defaults;
     /// @brief Provisions a temp /pst root on an in-memory filesystem.
     PstFixture()
     {
-        defaults["istate"] = "a: 1\n";
-        defaults["networkd"] = "mode: dhcp\n";
-        defaults["monitord"] = "interval: 5\n";
+        defaults["istate"]["config.yaml"] = "a: 1\n";
+        defaults["networkd"]["config.yaml"] = "mode: dhcp\n";
+        defaults["monitord"]["config.yaml"] = "interval: 5\n";
     }
 };
 
@@ -90,8 +90,8 @@ TEST(PstStore, SchemaVersionAndMigration)
     PstFixture f;
     f.pst.mount();
     f.pst.seed_defaults(f.defaults);
-    EXPECT_EQ(f.pst.schema_version(), "1");
-    std::map<std::string, std::string> new_release = {{"monitord", "interval: 5\ndisk_warn_pct: 90\n"}};
+    EXPECT_EQ(f.pst.schema_version(), std::string(kConfigSchemaVersion));
+    DefaultFileSet new_release = {{"monitord", {{"config.yaml", "interval: 5\ndisk_warn_pct: 90\n"}}}};
     auto added = f.pst.migrate(new_release);
     ASSERT_EQ(added.size(), 1u);
     EXPECT_EQ(added[0], "monitord/disk_warn_pct"); // new keys added...
@@ -197,7 +197,7 @@ TEST(PstStore, BootAfterUpdateMigratesAndStampsTheSchemaVersion)
     BootFixture f;
     // A device provisioned by the previous release: seeded, operator-edited,
     // and stamped with an older schema version.
-    std::map<std::string, std::string> old_defaults{{"monitord", "enabled: true\ninterval: 5\n"}};
+    DefaultFileSet old_defaults{{"monitord", {{"config.yaml", "enabled: true\ninterval: 5\n"}}}};
     ASSERT_TRUE(f.pst.seed_defaults(old_defaults).ok());
     {
         auto doc = f.pst.load_config("monitord");
@@ -208,7 +208,7 @@ TEST(PstStore, BootAfterUpdateMigratesAndStampsTheSchemaVersion)
     ASSERT_TRUE(f.pst.set_schema_version("0").ok());
 
     // The new release adds a key and keeps the old one.
-    std::map<std::string, std::string> new_defaults{{"monitord", "enabled: true\ninterval: 5\nhighres_window_s: 120\n"}};
+    DefaultFileSet new_defaults{{"monitord", {{"config.yaml", "enabled: true\ninterval: 5\nhighres_window_s: 120\n"}}}};
 
     IstateCore core(f.opts, f.fs, f.plat, f.ts, f.log);
     ASSERT_TRUE(core.boot(new_defaults));
@@ -228,7 +228,7 @@ TEST(PstStore, BootAfterUpdateMigratesAndStampsTheSchemaVersion)
 TEST(PstStore, BootAtTheCurrentSchemaVersionDoesNotRemigrate)
 {
     BootFixture f;
-    std::map<std::string, std::string> defaults{{"monitord", "enabled: true\ninterval: 5\n"}};
+    DefaultFileSet defaults{{"monitord", {{"config.yaml", "enabled: true\ninterval: 5\n"}}}};
     ASSERT_TRUE(f.pst.seed_defaults(defaults).ok());
     ASSERT_TRUE(f.pst.set_schema_version(kConfigSchemaVersion).ok());
     {

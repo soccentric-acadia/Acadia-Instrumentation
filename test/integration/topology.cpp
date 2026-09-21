@@ -150,14 +150,14 @@ struct Topology
         }
     }
 
-    std::map<std::string, std::string> defaults() const
+    DefaultFileSet defaults() const
     {
-        std::map<std::string, std::string> d;
-        d["istate"] = "enabled: true\n";
-        d["monitord"] = "enabled: true\ninterval: 0.2\n";
-        d["faults"] = "enabled: true\npoll_interval_s: 0.2\n";
-        d["telemetry"] = "enabled: true\ninterval: 0.5\n";
-        for (const char* x : {"networkd", "hardware", "alarms", "logmanager", "ota", "backup"}) d[x] = "enabled: true\n";
+        DefaultFileSet d;
+        d["istate"]["config.yaml"] = "enabled: true\n";
+        d["monitord"]["config.yaml"] = "enabled: true\ninterval: 0.2\n";
+        d["faults"]["config.yaml"] = "enabled: true\npoll_interval_s: 0.2\n";
+        d["telemetry"]["config.yaml"] = "enabled: true\ninterval: 0.5\n";
+        for (const char* x : {"networkd", "hardware", "alarms", "logmanager", "ota", "backup"}) d[x]["config.yaml"] = "enabled: true\n";
         return d;
     }
 
@@ -312,6 +312,50 @@ TEST(Topology, LivenessPingIsAnsweredOverTheRealChannel)
         },
         8000))
         << "an idle spoke never answered a liveness ping";
+}
+
+/// @brief The heartbeat cadence survives real traffic and adopts istate's
+/// pushed policy (§3.1). A busy spoke must keep proving liveness at the
+/// configured rate: heartbeats may not be starved by the data they carry.
+TEST(Topology, HeartbeatFlowsDespiteTrafficAndAdoptsIstateCadence)
+{
+    Topology t;
+    using ChannelT = transport::SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>;
+    ChannelT::Options o;
+    o.target = t.target("monitord");
+    o.daemon = "monitord";
+    o.build_version = "1.0.0";
+    o.backoff_base_s = 0.05;
+    o.backoff_max_s = 0.1;
+    ChannelT ch(std::move(o), t.log);
+    ch.start();
+    ASSERT_TRUE(wait_for([&] { return ch.registered(); }, 8000)) << "channel never registered";
+
+    // istate pushes its cadence as a transport-level command; the channel
+    // adopts it and acks (§3.1).
+    common::Command cmd;
+    cmd.set_op("set-heartbeat-interval");
+    cmd.set_json_args("{\"interval_s\":0.2}");
+    cmd.set_issued_by("istate");
+    auto fut = t.core->relay_command("monitord", cmd);
+    ASSERT_EQ(fut.wait_for(std::chrono::seconds(8)), std::future_status::ready) << "set-heartbeat-interval was never acked";
+    EXPECT_EQ(ch.heartbeat_interval_s(), 0.2);
+
+    // Continuous sample traffic: the queue is never empty for long.
+    for (int i = 0; i < 400; ++i)
+    {
+        ch.enqueue([](monitord::MonitorSpokeFrame& f) {
+            monitord::Sample* m = f.mutable_sample();
+            m->mutable_ts()->set_mono_ns(1);
+            m->set_metric("cpu.util");
+            m->set_value(10.0);
+            m->set_unit("pct");
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    // Heartbeats still flowed: istate recorded sequences despite the traffic.
+    ASSERT_TRUE(wait_for([&] { return t.core->last_heartbeat_sequence("monitord") > 0; }, 8000)) << "a continuously busy spoke never sent a heartbeat";
+    ch.stop();
 }
 
 /// @brief A proto schema mismatch is refused at registration.

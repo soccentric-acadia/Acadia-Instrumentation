@@ -74,8 +74,7 @@ int main(int argc, char** argv)
     {
         instr::NativeFileSystem fs;
         std::string devices_used;
-        auto txt = instr::read_first_available(
-            fs, {root + "/pst/system/hardware/devices.yaml", root + "/etc/instrumentation/devices.yaml"}, &devices_used);
+        auto txt = instr::read_first_available(fs, {root + "/pst/system/hardware/devices.yaml", root + "/etc/instrumentation/devices.yaml"}, &devices_used);
         auto sch = fs.read(root + "/usr/share/instrumentation/schemas/devices.schema.json");
         if (txt.ok() && sch.ok())
         {

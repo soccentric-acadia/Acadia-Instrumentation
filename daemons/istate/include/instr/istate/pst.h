@@ -51,7 +51,7 @@ namespace istate
 /// Bump it in the same commit that adds keys or files to system/defaults, so
 /// the first boot after an update migrates rather than silently running
 /// without them (§6, §7.9).
-inline constexpr const char* kConfigSchemaVersion = "2";
+inline constexpr const char* kConfigSchemaVersion = "3";
 
 /// @brief The complete image default file set, per daemon.
 ///

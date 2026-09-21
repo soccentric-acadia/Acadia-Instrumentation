@@ -107,10 +107,10 @@ struct Harness
         core->set_default_provider([this] { return defaults(); });
     }
 
-    std::map<std::string, std::string> defaults() const
+    DefaultFileSet defaults() const
     {
-        std::map<std::string, std::string> d;
-        for (const char* daemon : {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"}) d[daemon] = std::string("enabled: true\n") + "interval: 5\n";
+        DefaultFileSet d;
+        for (const char* daemon : {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"}) d[daemon]["config.yaml"] = std::string("enabled: true\n") + "interval: 5\n";
         return d;
     }
 };

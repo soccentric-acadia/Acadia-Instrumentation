@@ -45,7 +45,7 @@ struct CfgFixture
     BudgetManager budgets{fs, "/pst"};
     PstStore pst{fs, "/pst", budgets};
     ConfigService svc{pst, fs};
-    std::map<std::string, std::string> defaults{{"networkd", "mode: dhcp\ninterval: 5\n"}};
+    DefaultFileSet defaults{{"networkd", {{"config.yaml", "mode: dhcp\ninterval: 5\n"}}}};
     /// @brief Provision a temp /pst with seeded defaults for config tests.
     CfgFixture()
     {

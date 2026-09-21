@@ -70,6 +70,7 @@ class LogCore
         uint32_t tail_max_rate_per_s = 50; ///< Live-tail rate cap.
         uint64_t coredump_max_bytes = 32ull * 1024 * 1024; ///< Coredump capture cap.
         std::vector<SourceSpec> sources; ///< Configured log sources.
+        DaemonLogPolicy daemon_logs; ///< Daemon log directory rotation policy (§7.7).
     };
     /// @brief Current configuration.
     /// @return Current configuration.

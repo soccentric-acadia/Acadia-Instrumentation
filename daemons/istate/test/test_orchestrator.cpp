@@ -157,7 +157,10 @@ TEST(Orchestrator, RecoversWhenProbeRespondsAgain)
     EXPECT_EQ((*orch.spoke("monitord"))->state, SpokeState::Ready);
 }
 
-/// @brief The watchdog is petted only while every must-live daemon is healthy.
+/// @brief The watchdog is petted while must-live daemons are healthy; a down
+/// daemon gets a grace window (a restart takes seconds; a transient must not
+/// reboot the device), after which petting stops so the hardware watchdog can
+/// act as the last resort (§7.1).
 TEST(Orchestrator, WatchdogPetsOnlyWhenMustLiveHealthy)
 {
     SimulatedPlatform plat;
@@ -172,10 +175,60 @@ TEST(Orchestrator, WatchdogPetsOnlyWhenMustLiveHealthy)
     orch.set_watchdog_required({"faults", "monitord", "hardware", "networkd"});
     EXPECT_TRUE(orch.pet_watchdog());
     EXPECT_EQ(plat.watchdog_pets(), 1u);
-    // A degraded must-live daemon stops petting (hardware watchdog = last resort).
+    // A down must-live daemon is petted through the grace window...
     orch.mark_stopped("monitord");
+    orch.set_watchdog_grace_s(10.0);
+    ts.mono += 5ull * 1'000'000'000ull; // inside grace
+    EXPECT_TRUE(orch.pet_watchdog());
+    EXPECT_EQ(plat.watchdog_pets(), 2u);
+    // ...then petting stops: the hardware watchdog is the last resort.
+    ts.mono += 11ull * 1'000'000'000ull; // past grace
     EXPECT_FALSE(orch.pet_watchdog());
-    EXPECT_EQ(plat.watchdog_pets(), 2u); // still pets (but policy reports false)
+    EXPECT_EQ(plat.watchdog_pets(), 2u); // no additional pet
+    // Recovery resets the grace window.
+    orch.mark_ready("monitord");
+    EXPECT_TRUE(orch.pet_watchdog());
+    EXPECT_EQ(plat.watchdog_pets(), 3u);
+    // Zero grace = the strict policy: petting stops on the first down cycle.
+    orch.mark_stopped("monitord");
+    orch.set_watchdog_grace_s(0.0);
+    EXPECT_FALSE(orch.pet_watchdog());
+    EXPECT_EQ(plat.watchdog_pets(), 3u);
+}
+
+/// @brief A spoke quiet past the warning threshold (but under the hang
+/// threshold) degrades rather than hangs, and recovers when it answers (§3.1).
+TEST(Orchestrator, WarningTierDegradesBeforeHang)
+{
+    SimulatedPlatform plat;
+    ManualTimeSource ts;
+    Orchestrator orch(plat, ts);
+    orch.declare_spokes({"monitord"});
+    orch.register_spoke("monitord", "1.0.0", 1, {});
+    orch.mark_ready("monitord");
+    // Pings succeed; the spoke never answers: silence grows unboundedly.
+    orch.set_ping_fn([](const std::string&, uint64_t) { return true; });
+    ts.mono += 18ull * 1'000'000'000ull; // > 15s warning, < 30s hang
+    auto evs = orch.liveness_sweep(double(ts.mono_ns()) / 1e9, 30, 15);
+    EXPECT_EQ((*orch.spoke("monitord"))->state, SpokeState::Degraded);
+    EXPECT_TRUE(orch.degraded());
+    bool saw_degraded = false;
+    for (const auto& e : evs)
+        if (e.event == "degraded") saw_degraded = true;
+    EXPECT_TRUE(saw_degraded);
+    // Still past warning but under hang: it degrades, it does not hang.
+    ts.mono += 5ull * 1'000'000'000ull;
+    evs = orch.liveness_sweep(double(ts.mono_ns()) / 1e9, 30, 15);
+    EXPECT_EQ((*orch.spoke("monitord"))->state, SpokeState::Degraded);
+    // Past the hang threshold: hung (the tier is between healthy and hung).
+    ts.mono += 10ull * 1'000'000'000ull;
+    evs = orch.liveness_sweep(double(ts.mono_ns()) / 1e9, 30, 15);
+    EXPECT_EQ((*orch.spoke("monitord"))->state, SpokeState::Hung);
+    // Answering again recovers through Ready.
+    orch.note_pong("monitord", 1);
+    evs = orch.liveness_sweep(double(ts.mono_ns()) / 1e9, 30, 15);
+    EXPECT_EQ((*orch.spoke("monitord"))->state, SpokeState::Ready);
+    EXPECT_FALSE(orch.degraded());
 }
 
 /// @brief start_all requests starts through systemd in dependency order.

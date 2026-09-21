@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-09-21 — Heartbeat wiring, istate self-configuration and review repairs
+
+### Fixed
+
+- Repaired the tree at HEAD: the DefaultFileSet refactor left `core.cpp` and
+  every istate test calling the old flat-map signatures; istate and all eight
+  test targets now build, migrate fixtures included (schema-version constant
+  replaces a hardcoded "1").
+- Spoke heartbeats no longer starve under traffic: the transport writer sends
+  a heartbeat on its own cadence every interval regardless of queued frames
+  (§3.1), and a busy spoke can no longer look disconnected to GetPeerStatus.
+- GetPeerStatus counts the last thing a peer said (heartbeat or any frame),
+  derives its staleness window from `heartbeat_failure_timeout_s` instead of a
+  hardcoded 30 s, and reports the HQ peer connected from the session state.
+- `pet_watchdog` implements the documented contract: a down must-live daemon
+  is petted through a grace window, after which petting stops so the hardware
+  watchdog acts as the last resort (previously the watchdog was petted
+  unconditionally, making the must-live gate toothless).
+- Removed the mangled Doxygen block above `TypedHub` in hubs.cpp.
+
+### Added
+
+- istate applies its own configuration (§6): heartbeat cadence, warning and
+  failure thresholds, watchdog timeout, HQ endpoint and the time policy are
+  runtime-effective at boot, after every config write (write listener), and
+  via deliver_config("istate"); the cadence is relayed to every spoke with a
+  transport-level `set-heartbeat-interval` command, and late registerers
+  receive the current cadence and time policy at registration.
+- networkd `set-time-policy` command: applies istate's policy (source
+  priority, NTP servers, PTP domain/constellations) to the plan and re-renders
+  the time daemons through the platform (R8).
+- logmanager enforces the operator-configured daemon-log rotation policy
+  (`daemon_log_dir`, `daemon_log_rotate_size_bytes`, `daemon_log_retention_files`) —
+  previously dead keys.
+- Warning tier in the liveness sweep: a peer quiet past
+  `heartbeat_warning_timeout_s` degrades before the hang threshold; the tier
+  is configurable and defaults to 15 s (previously declared but unused).
+- webconfigd (Acadia-Configuration) heartbeats istate every 5 s so the
+  configuration peer reports connected (the RPC previously had no caller).
+- Tests: heartbeat recording with staleness/peer-mismatch rejection, own-config
+  application and write-listener chain, late-registrant policy delivery,
+  watchdog grace policy, warning tier, heartbeat-under-traffic over the real
+  channel, set-time-policy dispatch, and the daemon-log rotator (352 total).
+
 ## 2026-09-21 — Root-agent feature workflow guard (task 006)
 
 - Added a canonical instruction requiring leaf-started agents to refuse feature

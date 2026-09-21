@@ -166,3 +166,35 @@ TEST(NetworkdCore, GuardedApplyThroughPlatformRecordsRevert)
     EXPECT_TRUE(res.reverted);
     EXPECT_GE(plat.applied_plans().size(), 2u);
 }
+
+/// @brief The set-time-policy command (istate's policy push, R8) applies the
+/// delivered policy to the plan and renders the time daemons from it.
+TEST(NetworkdTimePolicy, SetTimePolicyCommandAppliesDeliveredPolicy)
+{
+    platform::SimulatedPlatform plat;
+    ManualTimeSource ts;
+    NetworkdCore core(plat, ts);
+    auto table = build_networkd_table(&core);
+
+    auto r = table.dispatch("set-time-policy", R"({"source_priority":["ntp","gnss"],"ntp_servers":["ntp.example.org"],"ptp_domain":7})");
+    ASSERT_TRUE(r.ok) << r.error_message;
+    // The policy reached the plan...
+    EXPECT_EQ(core.plan().time.source_priority, std::vector<std::string>({"ntp", "gnss"}));
+    EXPECT_EQ(core.plan().time.ntp_servers, std::vector<std::string>({"ntp.example.org"}));
+    EXPECT_EQ(core.plan().time.ptp_domain, 7u);
+    // ...and the time daemons were re-rendered from it through the platform.
+    bool applied = false;
+    for (const auto& j : plat.applied_plans())
+        if (j.find("\"kind\":\"time_policy\"") != std::string::npos) applied = true;
+    EXPECT_TRUE(applied);
+
+    // A partial push overrides only the named keys; the rest keep running.
+    auto r2 = table.dispatch("set-time-policy", R"({"ptp_domain":3})");
+    ASSERT_TRUE(r2.ok) << r2.error_message;
+    EXPECT_EQ(core.plan().time.ptp_domain, 3u);
+    EXPECT_EQ(core.plan().time.ntp_servers, std::vector<std::string>({"ntp.example.org"}));
+
+    // Garbage arguments are refused diagnosably.
+    auto r3 = table.dispatch("set-time-policy", "not-json");
+    EXPECT_FALSE(r3.ok);
+}

@@ -214,6 +214,39 @@ LogStore::PruneStats LogStore::enforce_retention(uint64_t now_mono_ns)
     return st;
 }
 
+// ---------------- DaemonLogRotator (§7.7) ----------------
+
+/// @brief One rotation pass over the daemon log directory.
+/// @return Number of files rotated.
+size_t DaemonLogRotator::enforce()
+{
+    if (policy_.dir.empty() || policy_.rotate_size_bytes == 0) return 0;
+    auto entries = fs_.list_dir(policy_.dir);
+    if (!entries.ok()) return 0;
+    size_t rotated = 0;
+    for (const auto& name : *entries)
+    {
+        // Only active daemon logs: `<name>.log`, never `.log.N` generations.
+        if (name.size() <= 4 || name.rfind(".log") != name.size() - 4) continue;
+        const std::string active = fs_.join(policy_.dir, name);
+        auto sz = fs_.file_size(active);
+        if (!sz.ok() || *sz < policy_.rotate_size_bytes) continue;
+        // Shift generations: .log.(N-1) → .log.N, ..., .log → .log.1.
+        // The generation that falls beyond retention is removed in passing.
+        const std::string stem = name.substr(0, name.size() - 4);
+        for (uint32_t gen = policy_.retention_files; gen >= 1; --gen)
+        {
+            const std::string dst = fs_.join(policy_.dir, stem + ".log." + std::to_string(gen));
+            const std::string src = gen == 1 ? active : fs_.join(policy_.dir, stem + ".log." + std::to_string(gen - 1));
+            if (!fs_.exists(src)) continue;
+            if (fs_.exists(dst)) (void)fs_.remove(dst, false);
+            (void)fs_.rename(src, dst);
+            if (gen == 1) ++rotated;
+        }
+    }
+    return rotated;
+}
+
 /// @brief Read the bounded tail of a source's active file.
 /// @param source Source to read.
 /// @param max_lines Maximum lines returned.

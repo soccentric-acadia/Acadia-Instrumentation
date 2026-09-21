@@ -57,6 +57,12 @@ IstateCore::IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform&
     budgets_.set_budget("logs", uint64_t(opts_.budget_logs));
     budgets_.set_budget("ota", uint64_t(opts_.budget_ota));
     budgets_.set_budget("backup", uint64_t(opts_.budget_backup));
+    // istate is the one daemon that reads its own config: every successful
+    // write (operator set, HQ push, app override) re-applies istate's keys to
+    // the running options (§6, §9).
+    config_service_.set_write_listener([this](const std::string& daemon) {
+        if (daemon == "istate") apply_own_config();
+    });
 }
 
 void IstateCore::on_spoke_heartbeat(const std::string& daemon, const common::Heartbeat& heartbeat)
@@ -121,7 +127,7 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
     // 2. Virgin detection + default seeding.
     if (mount.virgin)
     {
-        Error e = pst_.seed_defaults(default_yaml);
+        Error e = pst_.seed_defaults(defaults);
         if (!e.ok()) log_.error("istate", "default seeding failed: " + e.str());
         timeline_.append("boot", "istate", "{\"virgin\":true,\"seeded\":true}", ts_);
     }
@@ -134,7 +140,7 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
         const std::string on_disk = pst_.schema_version();
         if (on_disk != kConfigSchemaVersion)
         {
-            auto added = pst_.migrate(default_yaml);
+            auto added = pst_.migrate(defaults);
             Error e = pst_.set_schema_version(kConfigSchemaVersion);
             if (!e.ok()) log_.error("istate", "schema version write failed: " + e.str());
             log_.info("istate", "config migrated " + on_disk + " → " + kConfigSchemaVersion + ": " + std::to_string(added.size()) + " new keys");
@@ -149,6 +155,9 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
             audit_.append("istate", "update", "config_migration", ev.dump(), ts_);
         }
     }
+    // 2c. istate applies its own configuration: heartbeat cadence and
+    // thresholds, watchdog timeout, HQ endpoint, time policy (§6, R8).
+    apply_own_config();
 
     // 3. Load persisted schemas for config validation (registered by wiring).
     // 4. Provisioning state machine (§6.2).
@@ -166,7 +175,9 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
             if (hq_send_("enroll", req.dump()))
             {
                 TunnelConfig t;
-                t.hq_endpoint = "hq:51820";
+                // The endpoint istate supplies when HQ's answer does not carry
+                // one — configured, not compiled in (§6).
+                t.hq_endpoint = options().hq_endpoint.empty() ? "hq:51820" : options().hq_endpoint;
                 t.valid = true;
                 return Result<TunnelConfig>::good(t);
             }
@@ -198,9 +209,8 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
     Error se = northbound_spool_.open();
     if (!se.ok()) log_.error("istate", "northbound spool failed: " + se.str());
 
-    // 7. Watchdog: pet while all must-live daemons are live.
+    // 7. Watchdog: pet while all must-live daemons are live (grace-gated).
     orchestrator_.set_watchdog_required({"faults", "monitord", "hardware", "networkd"});
-    (void)plat_.watchdog_set_timeout_s(60);
 
     // Alarms observed during boot are raised now that the relay exists. They
     // are queued rather than dropped: the Alarms daemon starts after istate,
@@ -476,6 +486,29 @@ void IstateCore::on_spoke_registration(const common::RegistrationRequest& req, b
     std::string reason;
     orchestrator_.register_spoke(req.daemon(), req.build_version(), req.proto_schema_version(), caps, &reason);
     timeline_.append("registration", req.daemon(), "{\"accepted\":true,\"build\":\"" + req.build_version() + "\"}", ts_);
+    // Hand the new arrival the policy it missed while offline: the heartbeat
+    // cadence (§3.1), and for networkd the time policy istate owns (R8). A
+    // spoke that registers after a config change must run the current policy,
+    // not the compiled default it was built with.
+    if (relay_to_spoke_)
+    {
+        const auto opts = options();
+        transport::GenericHubMsg hb;
+        hb.has_command = true;
+        hb.command.set_op("set-heartbeat-interval");
+        hb.command.set_json_args("{\"interval_s\":" + std::to_string(opts.heartbeat_interval_s) + "}");
+        hb.command.set_issued_by("istate");
+        (void)relay_to_spoke_(req.daemon(), hb);
+    }
+    if (req.daemon() == "networkd" && !time_policy_json_.empty() && relay_to_spoke_)
+    {
+        transport::GenericHubMsg tp;
+        tp.has_command = true;
+        tp.command.set_op("set-time-policy");
+        tp.command.set_json_args(time_policy_json_);
+        tp.command.set_issued_by("istate");
+        (void)relay_to_spoke_(req.daemon(), tp);
+    }
 }
 
 /// @brief Declare an alarm through the Alarms relay (never writes the table directly).
@@ -512,11 +545,112 @@ void IstateCore::clear_alarm(uint32_t alarm_id)
     (void)relay_to_spoke_("alarms", m);
 }
 
+/// @brief Apply istate's own configuration to the running options.
+///
+/// istate is the one daemon that reads its own config file (§6): heartbeat
+/// cadence and thresholds, watchdog timeout, HQ endpoint and the time policy
+/// it owns (R8). The heartbeat cadence is relayed to every spoke with an open
+/// session (late registerers receive it at registration).
+void IstateCore::apply_own_config()
+{
+    auto doc = pst_.load_config("istate");
+    if (!doc.ok())
+    {
+        // No config yet (virgin or unrecoverable): compiled defaults stand —
+        // never block on configuration (R10).
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lk(opts_mu_);
+        auto num = [&](const char* key, double& dst) {
+            if ((*doc).has(key))
+            {
+                const double v = (*doc).get_double(key, dst);
+                if (v >= 1.0) dst = v;
+            }
+        };
+        num("heartbeat_interval_s", opts_.heartbeat_interval_s);
+        num("heartbeat_warning_timeout_s", opts_.heartbeat_warning_timeout_s);
+        num("heartbeat_failure_timeout_s", opts_.liveness_hang_timeout_s);
+        num("watchdog_timeout_s", opts_.watchdog_timeout_s);
+        if ((*doc).has("hq_endpoint")) opts_.hq_endpoint = (*doc).get_string("hq_endpoint", opts_.hq_endpoint);
+    }
+    (void)plat_.watchdog_set_timeout_s(int(options().watchdog_timeout_s));
+    // Time policy (R8: istate owns it; networkd executes it). Persisted as the
+    // exact args JSON so a networkd registering later receives the same policy.
+    JValue tp = JValue::object();
+    // Lists flatten to "<key>.__count" + "<key>.<i>" entries, so presence is
+    // checked via get_list() (empty = absent).
+    {
+        const auto pri = (*doc).get_list("time_source_priority");
+        if (!pri.empty())
+        {
+            JValue arr = JValue::array();
+            for (const auto& s : pri) arr.push(JValue(s));
+            tp.set("source_priority", arr);
+            std::lock_guard<std::mutex> lk(opts_mu_);
+            time_policy_.source_priority = pri;
+        }
+    }
+    {
+        const auto ntp = (*doc).get_list("ntp_servers");
+        if (!ntp.empty())
+        {
+            JValue arr = JValue::array();
+            for (const auto& s : ntp) arr.push(JValue(s));
+            tp.set("ntp_servers", arr);
+        }
+    }
+    if ((*doc).has("ptp_domain")) tp.set("ptp_domain", JValue(double((*doc).get_int("ptp_domain", 0))));
+    {
+        const auto gnss = (*doc).get_list("gnss_constellations");
+        if (!gnss.empty())
+        {
+            JValue arr = JValue::array();
+            for (const auto& s : gnss) arr.push(JValue(s));
+            tp.set("gnss_constellations", arr);
+        }
+    }
+    time_policy_json_ = tp.size() > 0 ? tp.dump() : "";
+    if (!time_policy_json_.empty() && relay_to_spoke_)
+    {
+        transport::GenericHubMsg m;
+        m.has_command = true;
+        m.command.set_op("set-time-policy");
+        m.command.set_json_args(time_policy_json_);
+        m.command.set_issued_by("istate");
+        (void)relay_to_spoke_("networkd", m);
+    }
+    // Heartbeat cadence: every spoke with an open session adopts it now; the
+    // rest receive it at registration (§3.1).
+    if (relay_to_spoke_)
+    {
+        const auto opts = options();
+        for (const auto& name : startup_order())
+        {
+            transport::GenericHubMsg m;
+            m.has_command = true;
+            m.command.set_op("set-heartbeat-interval");
+            m.command.set_json_args("{\"interval_s\":" + std::to_string(opts.heartbeat_interval_s) + "}");
+            m.command.set_issued_by("istate");
+            (void)relay_to_spoke_(name, m);
+        }
+    }
+    const auto cur = options();
+    log_.info("istate", "own config applied: heartbeat " + std::to_string(cur.heartbeat_interval_s) + "s, warn " + std::to_string(cur.heartbeat_warning_timeout_s) + "s, failure " + std::to_string(cur.liveness_hang_timeout_s) + "s, watchdog " + std::to_string(cur.watchdog_timeout_s) + "s");
+}
+
 /// @brief Push a daemon's current config over its session.
 /// @param daemon Daemon to push to.
 /// @return False when the spoke has no open session.
 bool IstateCore::deliver_config(const std::string& daemon)
 {
+    if (daemon == "istate")
+    {
+        // istate has no spoke channel: it applies its own config directly.
+        apply_own_config();
+        return true;
+    }
     auto doc = pst_.load_config(daemon);
     if (!doc.ok())
     {
@@ -657,7 +791,7 @@ Result<bool> IstateCore::system_reset(const std::string& actor)
 {
     // System reset: wipes system/ and state/, keeps factory/ and backup/,
     // reseeds from image defaults (§6.1).
-    std::map<std::string, std::string> defaults;
+    DefaultFileSet defaults;
     // Defaults come from the image set already registered with the wiring.
     if (default_provider_) defaults = default_provider_();
     Error e = pst_.system_reset(defaults);

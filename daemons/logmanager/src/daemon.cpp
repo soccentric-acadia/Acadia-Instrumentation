@@ -59,6 +59,12 @@ Error LogCore::apply_config(const ConfigDocument& doc)
     c.prune_interval_s = doc.get_double("prune_interval_s", 300.0);
     c.tail_max_rate_per_s = uint32_t(doc.get_int("tail_max_rate_per_s", 50));
     c.coredump_max_bytes = uint64_t(doc.get_int("coredump_max_bytes", 32ll * 1024 * 1024));
+    // Daemon log directory rotation (§7.7): the operator-configured size and
+    // retention for the files the daemons' own FileSinks write.
+    c.daemon_logs.dir = doc.get_string("daemon_log_dir", c.daemon_logs.dir);
+    c.daemon_logs.rotate_size_bytes = uint64_t(doc.get_int("daemon_log_rotate_size_bytes", 8ll * 1024 * 1024));
+    c.daemon_logs.retention_files = uint32_t(doc.get_int("daemon_log_retention_files", 2));
+    if (c.daemon_logs.rotate_size_bytes < 1024) return Error::make(Errc::InvalidArgument, "daemon_log_rotate_size_bytes must be >= 1024", "logmanager config");
     if (c.prune_interval_s <= 0) return Error::make(Errc::InvalidArgument, "prune_interval_s must be > 0", "logmanager config");
 
     // sources[] is a list of objects; the flattened document exposes them as

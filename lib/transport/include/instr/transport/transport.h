@@ -117,7 +117,7 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     /// @param opts Channel parameters.
     /// @param backoff_base_s Reconnect backoff base (unused after opts; kept for compatibility).
     /// @param backoff_max_s Reconnect backoff cap (unused after opts).
-    SpokeChannel(Options opts, Logger& log) : opts_(std::move(opts)), log_(log), backoff_(opts_.backoff_base_s, opts_.backoff_max_s)
+    SpokeChannel(Options opts, Logger& log) : opts_(std::move(opts)), log_(log), backoff_(opts_.backoff_base_s, opts_.backoff_max_s), hb_interval_s_(opts_.heartbeat_interval_s)
     {
     }
 
@@ -199,6 +199,27 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     void send_pong(uint64_t nonce)
     {
         enqueue([&](SpokeFrame& f) { f.mutable_pong()->set_nonce(nonce); });
+    }
+    /// @brief Re-configure the heartbeat cadence at runtime (istate policy push).
+    ///
+    /// Takes effect on the writer's next deadline; a heartbeat is due roughly
+    /// @p interval_s from the call.
+    /// @param interval_s Seconds between heartbeats; must be > 0.
+    void set_heartbeat_interval_s(double interval_s)
+    {
+        if (interval_s <= 0.0) return;
+        hb_interval_s_.store(interval_s, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            next_heartbeat_ = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(interval_s));
+        }
+        cv_.notify_all();
+    }
+    /// @brief The currently effective heartbeat interval in seconds.
+    /// @return Seconds between heartbeats.
+    double heartbeat_interval_s() const
+    {
+        return hb_interval_s_.load(std::memory_order_relaxed);
     }
     /// @brief Queue a status JSON frame.
     /// @param status_json Status JSON to queue.
@@ -296,17 +317,22 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
         // Writer thread.
         std::atomic<bool> stream_ok{true};
         std::thread writer([this, &rw, &stream_ok] {
-            auto next_heartbeat = std::chrono::steady_clock::now() + std::chrono::duration<double>(opts_.heartbeat_interval_s);
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                next_heartbeat_ = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(hb_interval_s_.load(std::memory_order_relaxed)));
+            }
             uint64_t heartbeat_sequence = 0;
             while (running_.load() && stream_ok.load())
             {
                 SpokeFrame f;
+                bool have_frame = false;
                 bool send_heartbeat = false;
                 {
                     std::unique_lock<std::mutex> lk(mu_);
-                    if (opts_.heartbeat_interval_s > 0.0)
+                    const double interval = hb_interval_s_.load(std::memory_order_relaxed);
+                    if (interval > 0.0)
                     {
-                        cv_.wait_until(lk, next_heartbeat, [this] { return !queue_.empty(); });
+                        cv_.wait_until(lk, next_heartbeat_, [this] { return !queue_.empty(); });
                     }
                     else
                     {
@@ -316,27 +342,40 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
                     {
                         f = std::move(queue_.front());
                         queue_.pop_front();
+                        have_frame = true;
                     }
-                    else if (opts_.heartbeat_interval_s > 0.0 && std::chrono::steady_clock::now() >= next_heartbeat)
+                    // The heartbeat fires on its own cadence even while real
+                    // traffic flows: a busy spoke must still prove liveness at
+                    // the configured rate, and an idle one must not depend on
+                    // traffic to carry it. Traffic never resets the deadline.
+                    if (interval > 0.0 && std::chrono::steady_clock::now() >= next_heartbeat_)
                     {
                         send_heartbeat = true;
-                        next_heartbeat = std::chrono::steady_clock::now() + std::chrono::duration<double>(opts_.heartbeat_interval_s);
+                        next_heartbeat_ = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(interval));
                     }
                 }
                 if (send_heartbeat)
                 {
-                    auto* hb = f.mutable_heartbeat();
-                    hb->set_peer(opts_.daemon);
-                    hb->set_sequence(++heartbeat_sequence);
-                    hb->set_mono_ns(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()));
-                    hb->set_ready(true);
-                    hb->set_health(common::HEALTH_PASS);
+                    SpokeFrame hb;
+                    auto* h = hb.mutable_heartbeat();
+                    h->set_peer(opts_.daemon);
+                    h->set_sequence(++heartbeat_sequence);
+                    h->set_mono_ns(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()));
+                    h->set_ready(true);
+                    h->set_health(common::HEALTH_PASS);
+                    if (!rw->Write(hb))
+                    {
+                        stream_ok = false;
+                        return;
+                    }
                 }
-                else if (f.body_case() == SpokeFrame::BODY_NOT_SET) { continue; }
-                if (!rw->Write(f))
+                if (have_frame)
                 {
-                    stream_ok = false;
-                    return;
+                    if (!rw->Write(f))
+                    {
+                        stream_ok = false;
+                        return;
+                    }
                 }
             }
         });
@@ -392,6 +431,33 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
                 queue_.push_back(std::move(pong));
                 cv_.notify_one();
             }
+            // Built-in policy: istate pushes the heartbeat cadence (§3.1) as a
+            // transport-level command so every spoke adopts it without each
+            // daemon's domain layer needing to know about liveness.
+            if (hf.has_command() && hf.command().op() == "set-heartbeat-interval")
+            {
+                double interval = 0.0;
+                auto args = json_parse(hf.command().json_args());
+                if (args.ok())
+                {
+                    if (const JValue* n = (*args).find("interval_s")) interval = n->as_number();
+                }
+                common::Ack ack;
+                ack.set_id(hf.command().id());
+                if (interval > 0.0)
+                {
+                    set_heartbeat_interval_s(interval);
+                    log_.info(opts_.daemon, "heartbeat interval set to " + std::to_string(interval) + "s");
+                    ack.set_ok(true);
+                }
+                else
+                {
+                    ack.set_ok(false);
+                    ack.set_code("invalid-argument");
+                    ack.set_message("interval_s must be > 0");
+                }
+                send_ack(ack);
+            }
         }
         stream_ok = false;
         cv_.notify_all();
@@ -412,6 +478,8 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     std::atomic<bool> registered_{false}; ///< True between accepted registration and session end.
     ConfigHandler config_handler_; ///< Config-delivery callback.
     std::atomic<uint64_t> config_revision_{0}; ///< Last successfully applied config revision.
+    std::atomic<double> hb_interval_s_{5.0}; ///< Effective heartbeat cadence (runtime-settable).
+    std::chrono::steady_clock::time_point next_heartbeat_{}; ///< Next heartbeat deadline (guarded by mu_).
     std::mutex ctx_mu_; ///< Guards active_ctx_.
     grpc::ClientContext* active_ctx_ = nullptr; ///< In-flight stream context (guarded by ctx_mu_); stop() cancels it.
 };

@@ -184,10 +184,15 @@ class Orchestrator
         std::string event;     ///< hung / restarted / degraded.
     };
     /// @brief Sweep all spokes for hangs; returns events to emit.
+    ///
+    /// Two thresholds: a spoke quiet for @p warning_timeout_s (when > 0)
+    /// degrades — still responding, but past the warning tier (§3.1);
+    /// quiet for @p hang_timeout_s is hung and gets restarted.
     /// @param now_s Current monotonic seconds.
     /// @param hang_timeout_s Silence threshold in seconds.
+    /// @param warning_timeout_s Warning threshold in seconds (0 disables the tier).
     /// @return Liveness events to emit.
-    std::vector<LivenessEvent> liveness_sweep(double now_s, double hang_timeout_s);
+    std::vector<LivenessEvent> liveness_sweep(double now_s, double hang_timeout_s, double warning_timeout_s = 0.0);
 
     /// @brief Watchdog policy: pet only while every must-live daemon is live.
     /// @param names Daemons that must be live for a pet.
@@ -195,11 +200,20 @@ class Orchestrator
     {
         must_live_ = names;
     }
-    /// @brief Pet the watchdog when safe; false when a must-live daemon is down.
-    /// @param now_s Current monotonic seconds.
-    /// @param hang_timeout_s Silence threshold in seconds.
-    /// @return Liveness events to emit.
+    /// @brief Pet the watchdog when safe; false when a must-live daemon is down past grace.
+    ///
+    /// Pets while every must-live daemon is live. A down daemon is granted a
+    /// grace window (set_watchdog_grace_s) — restarting a spoke takes seconds
+    /// and a transient must not reboot the device — after which petting stops
+    /// so the hardware watchdog can act as the last resort (§7.1).
+    /// @return True when the watchdog was petted; false when petting stopped.
     bool pet_watchdog();
+    /// @brief Set the petting grace window for a down must-live daemon.
+    /// @param grace_s Seconds to keep petting after a must-live daemon goes down.
+    void set_watchdog_grace_s(double grace_s)
+    {
+        watchdog_grace_s_ = grace_s;
+    }
 
     /// @brief All managed spokes.
     /// @return All managed spokes.
@@ -241,6 +255,8 @@ class Orchestrator
     std::function<bool(const std::string&, uint64_t)> send_ping_;   ///< Ping sender.
     uint64_t next_nonce_ = 1;         ///< Ping nonce generator.
     std::vector<std::string> must_live_;    ///< Watchdog-gating daemons.
+    double watchdog_grace_s_ = 30.0;  ///< Petting grace for a down must-live daemon.
+    uint64_t grace_start_mono_ = 0;   ///< When the current outage began (0 = healthy).
     std::function<void(const std::string&, const std::string&)> event_sink_;   ///< Event sink.
 };
 

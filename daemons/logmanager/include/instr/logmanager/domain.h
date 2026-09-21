@@ -169,6 +169,49 @@ class LogStore
     uint64_t budget_bytes_ = 128ull * 1024 * 1024; ///< Per-class storage budget.
 };
 
+/// @brief Rotation policy for the daemon log directory (§7.7).
+struct DaemonLogPolicy
+{
+    std::string dir = "/var/log/instrumentation";  ///< Directory the daemons' FileSinks write to.
+    uint64_t rotate_size_bytes = 8 * 1024 * 1024;  ///< Rotate a daemon log when it exceeds this.
+    uint32_t retention_files = 2;                  ///< Generations kept per daemon log (active + N-1 rotated).
+};
+
+/// @brief Size-rotates the daemon log files (istate.log, monitord.log, ...) under the configured policy.
+///
+/// The daemons' own FileSinks self-rotate at a compiled default; this pass
+/// enforces the operator-configured size and retention (§7.7), which nothing
+/// else owns. Rotation shifts .log → .log.1 → ... → .log.N and removes
+/// generations beyond retention.
+class DaemonLogRotator
+{
+  public:
+    /// @brief Bind the rotator to a filesystem.
+    /// @param fs Storage backend.
+    explicit DaemonLogRotator(IFileSystem& fs) : fs_(fs)
+    {
+    }
+    /// @brief Replace the rotation policy.
+    /// @param policy New policy.
+    void configure(const DaemonLogPolicy& policy)
+    {
+        policy_ = policy;
+    }
+    /// @brief The active policy.
+    /// @return The active policy.
+    const DaemonLogPolicy& policy() const
+    {
+        return policy_;
+    }
+    /// @brief One rotation pass over the daemon log directory.
+    /// @return Number of files rotated.
+    size_t enforce();
+
+  private:
+    IFileSystem& fs_;               ///< Storage backend (not owned).
+    DaemonLogPolicy policy_;        ///< Active policy.
+};
+
 /// @brief Live tail session: bounded, filtered, rate-limited, auto-stop.
 class TailSession
 {

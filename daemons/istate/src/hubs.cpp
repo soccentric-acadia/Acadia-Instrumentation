@@ -136,100 +136,9 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class TypedH
 {
   public:
     /// @brief Construct a hub for @p daemon wiring ingest into the istate core.
+    /// @brief Construct a hub for @p daemon wiring ingest into the istate core.
     /// @param core istate core the hub ingests into.
     /// @param daemon Spoke identity this hub accepts.
-    /// @param ' '..
-    /// @param S S..
-    /// @param e E..
-    /// @param r R..
-    /// @param v V..
-    /// @param i I..
-    /// @param c C..
-    /// @param e E..
-    /// @param ' '..
-    /// @param , ,..
-    /// @param    ..
-    /// @param ' '..
-    /// @param S S..
-    /// @param p P..
-    /// @param o O..
-    /// @param k K..
-    /// @param e E..
-    /// @param F F..
-    /// @param r R..
-    /// @param a A..
-    /// @param m M..
-    /// @param e E..
-    /// @param ' '..
-    /// @param ' '..
-    /// @param S S..
-    /// @param e E..
-    /// @param r R..
-    /// @param v V..
-    /// @param i I..
-    /// @param c C..
-    /// @param e E..
-    /// @param ' '..
-    /// @param , ,..
-    /// @param    ..
-    /// @param ' '..
-    /// @param S S..
-    /// @param p P..
-    /// @param o O..
-    /// @param k K..
-    /// @param e E..
-    /// @param F F..
-    /// @param r R..
-    /// @param a A..
-    /// @param m M..
-    /// @param e E..
-    /// @param ' '..
-    /// @param ' '..
-    /// @param S S..
-    /// @param e E..
-    /// @param r R..
-    /// @param v V..
-    /// @param i I..
-    /// @param c C..
-    /// @param e E..
-    /// @param ' '..
-    /// @param , ,..
-    /// @param    ..
-    /// @param ' '..
-    /// @param S S..
-    /// @param p P..
-    /// @param o O..
-    /// @param k K..
-    /// @param e E..
-    /// @param F F..
-    /// @param r R..
-    /// @param a A..
-    /// @param m M..
-    /// @param e E..
-    /// @param ' '..
-    /// @param ' '..
-    /// @param S S..
-    /// @param e E..
-    /// @param r R..
-    /// @param v V..
-    /// @param i I..
-    /// @param c C..
-    /// @param e E..
-    /// @param ' '..
-    /// @param , ,..
-    /// @param    ..
-    /// @param ' '..
-    /// @param S S..
-    /// @param p P..
-    /// @param o O..
-    /// @param k K..
-    /// @param e E..
-    /// @param F F..
-    /// @param r R..
-    /// @param a A..
-    /// @param m M..
-    /// @param e E..
-    /// @param ' '..
     TypedHub(IstateCore& core, std::string daemon) : HubServiceBase<Service, SpokeFrame, HubFrame>(daemon, INSTR_VERSION), core_(core)
     {
         this->set_ingest([this, &core](const GenericSpokeMsg& m) { core.on_spoke_msg(m); });
@@ -931,15 +840,27 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
     grpc::Status GetPeerStatus(grpc::ServerContext*, const istate::ListSpokesRequest*, common::PeerStatusList* reply) override
     {
         const auto now = core_.clock().mono_ns();
+        // Staleness window = the heartbeat failure threshold (§3.1), not a
+        // compile-time constant, so a reconfigured cadence stays coherent.
+        const uint64_t window_ns = uint64_t(core_.options().liveness_hang_timeout_s * 1e9);
         for (const char* name : {"networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup", "configuration", "hq"})
         {
             auto* p = reply->add_peers();
             p->set_peer(name);
             p->set_kind(std::string(name) == "configuration" ? common::PEER_CONFIGURATION : std::string(name) == "hq" ? common::PEER_HQ : common::PEER_SPOKE);
-            const auto last = core_.last_heartbeat_mono_ns(name);
+            // The last thing a peer said counts, not only its heartbeat: a
+            // spoke streaming samples every second is connected even while its
+            // idle heartbeat timer happens to lose the race against traffic.
+            auto last = core_.last_heartbeat_mono_ns(name);
+            if (std::string(name) != "configuration" && std::string(name) != "hq")
+            {
+                auto sp = core_.orchestrator().spoke(name);
+                if (sp.ok()) last = std::max(last, (*sp)->last_seen_mono);
+            }
             p->set_last_mono_ns(last);
             p->set_last_sequence(core_.last_heartbeat_sequence(name));
-            const bool recent = last != 0 && now >= last && now - last <= 30'000'000'000ull;
+            bool recent = last != 0 && now >= last && now - last <= window_ns;
+            if (std::string(name) == "hq" && core_.hq_session().state() == istate::HqSession::State::Connected) recent = true;
             p->set_connected(recent);
             p->set_operational(recent);
             p->set_state(recent ? "operational" : "unresponsive");
@@ -1833,7 +1754,7 @@ bool HqClient::try_session()
                     break;
                 }
             }
-            next_heartbeat = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            next_heartbeat = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(core_.options().heartbeat_interval_s));
         }
         if (core_.hq_backpressured())
         {

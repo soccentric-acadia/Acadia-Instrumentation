@@ -68,7 +68,7 @@ struct FaultFixture
         opts.build_version = "test";
         opts.spool_max_bytes = 4096;
         core = std::make_unique<IstateCore>(opts, fs, plat, ts, log);
-        std::map<std::string, std::string> defaults{{"istate", "a: 1\n"}};
+        DefaultFileSet defaults{{"istate", {{"config.yaml", "a: 1\n"}}}};
         core->boot(defaults);
     }
 };

@@ -143,6 +143,17 @@ class ConfigService
     /// @return Rejected paths and error text.
     SetResult set(const std::string& daemon, const std::string& yaml_text, Origin origin, bool force);
 
+    /// @brief Install a post-write listener (fired with the daemon written).
+    ///
+    /// Every successful write path — operator set, HQ signed push, app
+    /// override — reports here so the target can act on its new configuration
+    /// (istate applies its own keys to the runtime).
+    /// @param f Listener (daemon name).
+    void set_write_listener(std::function<void(const std::string& daemon)> f)
+    {
+        on_write_ = std::move(f);
+    }
+
     /// @brief HQ's Ed25519 config-signing public keys, by key id (§9).
     ///
     /// The device holds only public keys: opening one device yields nothing
@@ -203,6 +214,7 @@ class ConfigService
     std::map<std::string, JValue> schemas_;          ///< Per-daemon schemas.
     std::map<std::string, std::string> signing_keys_;   ///< Trusted signing keys.
     bool last_push_legacy_ = false;       ///< Latched when the legacy HMAC path is used.
+    std::function<void(const std::string&)> on_write_;   ///< Post-write listener.
 };
 
 } // namespace istate

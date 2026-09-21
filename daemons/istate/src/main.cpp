@@ -168,7 +168,11 @@ int main(int argc, char** argv)
     core.boot(defaults);
     instr::sd_notify_ready();
 
-    // Liveness sweeps + watchdog petting on the main loop.
+    // Liveness sweeps + watchdog petting on the main loop. The sweep cadence
+    // is istate's heartbeat_interval_s (§3.1); the health marker is written
+    // every iteration (1 s) so the software watchdog's 30 s staleness window
+    // never trips on a long configured heartbeat interval.
+    double last_sweep_s = -1.0;
     instr::run_until_stop(
         stop,
         [&] {
@@ -186,29 +190,36 @@ int main(int argc, char** argv)
                 }
                 else { log.warning("istate", "software watchdog health marker unavailable", {{"path", health_path}}); }
             }
-            auto evs = core.orchestrator().liveness_sweep(double(ts.mono_ns()) / 1e9, core.options().liveness_hang_timeout_s);
-            for (const auto& ev : evs)
+            const auto cur = core.options();
+            core.orchestrator().set_watchdog_grace_s(cur.liveness_hang_timeout_s);
+            const double now_s = double(ts.mono_ns()) / 1e9;
+            if (last_sweep_s < 0.0 || now_s - last_sweep_s >= cur.heartbeat_interval_s)
             {
-                log.warning("istate", "liveness: " + ev.daemon + " " + ev.event);
-                // Crash forensics (§7.7): capture on abnormal daemon exit. The
-                // capture itself lives in logmanager; istate is what notices, so
-                // it is istate that has to ask. Without this the forensic path
-                // only ever fired when an operator ran the ctrl op by hand —
-                // long after the evidence it exists for was gone.
-                if (ev.event == "hung" || ev.event == "degraded")
+                last_sweep_s = now_s;
+                auto evs = core.orchestrator().liveness_sweep(now_s, cur.liveness_hang_timeout_s, cur.heartbeat_warning_timeout_s);
+                for (const auto& ev : evs)
                 {
-                    instr::JValue crash_args = instr::JValue::object();
-                    crash_args.set("daemon", instr::JValue(ev.daemon));
-                    // Empty coredump path: logmanager resolves it from the
-                    // platform's coredump directory.
-                    crash_args.set("tail_lines", instr::JValue(200));
-                    instr::common::Command cmd;
-                    cmd.set_op("crash-report");
-                    cmd.set_json_args(crash_args.dump());
-                    cmd.set_issued_by("istate");
-                    // Fire and forget: a forensic capture must never hold up the
-                    // liveness sweep or the watchdog pet (R10).
-                    (void)core.relay_command("logmanager", cmd);
+                    log.warning("istate", "liveness: " + ev.daemon + " " + ev.event);
+                    // Crash forensics (§7.7): capture on abnormal daemon exit. The
+                    // capture itself lives in logmanager; istate is what notices, so
+                    // it is istate that has to ask. Without this the forensic path
+                    // only ever fired when an operator ran the ctrl op by hand —
+                    // long after the evidence it exists for was gone.
+                    if (ev.event == "hung" || ev.event == "degraded")
+                    {
+                        instr::JValue crash_args = instr::JValue::object();
+                        crash_args.set("daemon", instr::JValue(ev.daemon));
+                        // Empty coredump path: logmanager resolves it from the
+                        // platform's coredump directory.
+                        crash_args.set("tail_lines", instr::JValue(200));
+                        instr::common::Command cmd;
+                        cmd.set_op("crash-report");
+                        cmd.set_json_args(crash_args.dump());
+                        cmd.set_issued_by("istate");
+                        // Fire and forget: a forensic capture must never hold up the
+                        // liveness sweep or the watchdog pet (R10).
+                        (void)core.relay_command("logmanager", cmd);
+                    }
                 }
             }
             core.orchestrator().pet_watchdog();

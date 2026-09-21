@@ -207,6 +207,7 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
             return res;
         }
         res.ok = true;
+        if (on_write_) on_write_(daemon);
         return res;
     }
     auto incoming = ConfigDocument::parse(yaml_text, schema.is_object() ? schema : JValue::object(), daemon);
@@ -223,6 +224,7 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
         return res;
     }
     res.ok = true;
+    if (on_write_) on_write_(daemon);
     return res;
 }
 

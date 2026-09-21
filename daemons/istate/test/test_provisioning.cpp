@@ -42,7 +42,7 @@ struct ProvFixture
     BudgetManager budgets{fs, "/pst"};
     PstStore pst{fs, "/pst", budgets};
     Provisioner prov{pst, plat, fs};
-    std::map<std::string, std::string> defaults{{"istate", "a: 1\n"}};
+    DefaultFileSet defaults{{"istate", {{"config.yaml", "a: 1\n"}}}};
     /// @brief Provisions a temp store, simulated platform and scripted enrollment.
     ProvFixture()
     {

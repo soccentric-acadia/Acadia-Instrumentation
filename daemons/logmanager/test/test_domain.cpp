@@ -482,3 +482,49 @@ TEST(LogCollect, CollectedLinesReachTheLiveTailFanout)
     ASSERT_EQ(seen.size(), 1u);
     EXPECT_EQ(seen[0].source, "app");
 }
+
+/// @brief The daemon log rotator enforces the configured size and retention on
+/// the files the daemons' own FileSinks write (§7.7) — nothing else owns them.
+TEST(DaemonLogRotator, RotatesBySizeAndDropsBeyondRetention)
+{
+    SimulatedFileSystem fs;
+    fs.mkdirs("/var/log/instrumentation");
+    DaemonLogRotator rot(fs);
+    DaemonLogPolicy p;
+    p.dir = "/var/log/instrumentation";
+    p.rotate_size_bytes = 100;
+    p.retention_files = 2;
+    rot.configure(p);
+
+    // Under the threshold: no rotation.
+    fs.write("/var/log/instrumentation/istate.log", std::string(50, 'a'), false);
+    EXPECT_EQ(rot.enforce(), 0u);
+    EXPECT_TRUE(fs.exists("/var/log/instrumentation/istate.log"));
+    EXPECT_FALSE(fs.exists("/var/log/instrumentation/istate.log.1"));
+
+    // Over the threshold: active shifts to .log.1.
+    fs.write("/var/log/instrumentation/istate.log", std::string(150, 'b'), true);
+    EXPECT_EQ(rot.enforce(), 1u);
+    EXPECT_TRUE(fs.exists("/var/log/instrumentation/istate.log.1"));
+    // The active file was recreated by the daemon; here it no longer exists
+    // until the next write — which mirrors the FileSink reopening after rotate.
+
+    // Three generations: .log.1 → .log.2, active → .log.1.
+    fs.write("/var/log/instrumentation/istate.log", std::string(150, 'c'), true);
+    EXPECT_EQ(rot.enforce(), 1u);
+    EXPECT_TRUE(fs.exists("/var/log/instrumentation/istate.log.1"));
+    EXPECT_TRUE(fs.exists("/var/log/instrumentation/istate.log.2"));
+
+    // A third rotation drops the oldest generation beyond retention (2).
+    fs.write("/var/log/instrumentation/istate.log", std::string(150, 'd'), true);
+    EXPECT_EQ(rot.enforce(), 1u);
+    EXPECT_TRUE(fs.exists("/var/log/instrumentation/istate.log.1"));
+    EXPECT_TRUE(fs.exists("/var/log/instrumentation/istate.log.2"));
+    EXPECT_FALSE(fs.exists("/var/log/instrumentation/istate.log.3"));
+
+    // Rotated generations are not re-rotated by name match.
+    auto entries = fs.list_dir("/var/log/instrumentation");
+    ASSERT_TRUE(entries.ok());
+    for (const auto& e : *entries)
+        if (e.find(".log.") != std::string::npos) EXPECT_NE(e, "istate.log.2.log");
+}

@@ -374,6 +374,36 @@ CommandTable build_networkd_table(NetworkdCore* core)
                o.set("gpsd_args", JValue(core->time_daemons().gpsd_args));
                return CommandResult::good(o.dump());
            }});
+    t.add({"set-time-policy",
+           "apply a time-source policy delivered by istate (R8: istate owns the policy, networkd executes it)",
+           {{"source_priority", false, "source preference order, e.g. [gnss,ptp,ntp]"}, {"ntp_servers", false, "NTP pool servers"}, {"ptp_domain", false, "PTP domain number"}, {"gnss_constellations", false, "constellations to track"}},
+           [core](const std::string& args) {
+               auto a = args_object(args);
+               if (!a.ok()) return CommandResult::from_error(a.error);
+               // Start from the running policy; every provided key overrides it.
+               TimePolicy p = core->plan().time;
+               auto strings = [&a](const char* key, std::vector<std::string>& dst) {
+                   if (const JValue* v = (*a).find(key))
+                   {
+                       dst.clear();
+                       if (v->is_array())
+                           for (const auto& e : v->items()) dst.push_back(e.as_string());
+                   }
+               };
+               strings("source_priority", p.source_priority);
+               strings("ntp_servers", p.ntp_servers);
+               strings("gnss_constellations", p.gnss_constellations);
+               if (const JValue* v = (*a).find("ptp_domain")) p.ptp_domain = uint32_t(v->as_number());
+               if (const JValue* v = (*a).find("ptp_profile")) p.ptp_profile = v->as_string();
+               Error e = core->apply_time_policy(p);
+               if (!e.ok()) return CommandResult::from_error(e);
+               JValue o = JValue::object();
+               o.set("applied", JValue(true));
+               JValue prio = JValue::array();
+               for (const auto& s : p.source_priority) prio.push(JValue(s));
+               o.set("source_priority", prio);
+               return CommandResult::good(o.dump());
+           }});
     t.add({"failover-rank", "rank interfaces by priority and reachability", {}, [core](const std::string&) {
                std::vector<Reachability> probes;
                for (const auto& i : core->platform().interfaces())

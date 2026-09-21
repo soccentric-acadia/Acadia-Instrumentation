@@ -225,7 +225,7 @@ void Orchestrator::note_pong(const std::string& daemon, uint64_t nonce)
 /// @param now_s Current monotonic seconds.
 /// @param hang_timeout_s Silence threshold in seconds.
 /// @return Liveness events to emit.
-std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now_s, double hang_timeout_s)
+std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now_s, double hang_timeout_s, double warning_timeout_s)
 {
     std::vector<LivenessEvent> out;
     const uint64_t now_mono = ts_.mono_ns();
@@ -251,6 +251,7 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
         // An explicit probe overrides the channel signal where one is wired.
         auto pit = probes_.find(kv.first);
         bool alive;
+        double silent_s = 0.0;
         if (pit != probes_.end()) { alive = pit->second(); }
         else if (!send_ping_ || !pinged)
         {
@@ -262,7 +263,7 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
             // Silence is measured from the last thing the spoke actually said —
             // a pong or real traffic — never reset by our own sweep.
             const uint64_t last = std::max(info.last_pong_mono, info.last_seen_mono);
-            const double silent_s = last == 0 ? 0.0 : double(now_mono - last) / 1e9;
+            silent_s = last == 0 ? 0.0 : double(now_mono - last) / 1e9;
             // Give a freshly registered spoke one full timeout to answer.
             alive = last == 0 ? (double(now_mono - info.last_ping_mono) / 1e9 < hang_timeout_s) : (silent_s < hang_timeout_s);
         }
@@ -290,6 +291,22 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
             out.push_back({kv.first, "recovered"});
             if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + kv.first + "\",\"online\":true,\"reason\":\"recovered\"}");
         }
+        else if (warning_timeout_s > 0.0 && info.state == SpokeState::Ready && silent_s >= warning_timeout_s)
+        {
+            // Warning tier (§3.1): still answering inside the hang threshold
+            // but quiet past the warning threshold — degraded, not hung.
+            info.state = SpokeState::Degraded;
+            out.push_back({kv.first, "degraded"});
+            if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + kv.first + "\",\"online\":false,\"reason\":\"degraded\"}");
+            info.live = true;
+        }
+        else if (info.state == SpokeState::Degraded && (warning_timeout_s <= 0.0 || silent_s < warning_timeout_s))
+        {
+            info.state = SpokeState::Ready;
+            out.push_back({kv.first, "recovered"});
+            if (event_sink_) event_sink_("presence", "{\"daemon\":\"" + kv.first + "\",\"online\":true,\"reason\":\"recovered\"}");
+            info.live = true;
+        }
         else { info.live = true; }
         (void)now_s;
     }
@@ -297,22 +314,35 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
 }
 
 /// @brief Pet the watchdog only when every must-live daemon is live.
-/// @return True when the watchdog was petted; false when a must-live daemon is down.
+///
+/// A down must-live daemon is petted through a grace window (restarting a
+/// spoke takes seconds; a transient must not reboot the device); once the
+/// window expires, petting stops so the hardware watchdog can act as the
+/// last resort (§7.1).
+/// @return True when the watchdog was petted; false when petting stopped.
 bool Orchestrator::pet_watchdog()
 {
-    // Pet only while every must-live daemon is live; a hung daemon stops the
-    // petting so the hardware watchdog can act as the last resort.
+    bool all_live = true;
     for (const auto& name : must_live_)
     {
         auto it = spokes_.find(name);
         if (it == spokes_.end()) continue;
         if (it->second.state != SpokeState::Ready || !it->second.live)
         {
-            (void)plat_.watchdog_pet();
-            return false;
+            all_live = false;
+            break;
         }
     }
-    return plat_.watchdog_pet().ok();
+    if (all_live)
+    {
+        grace_start_mono_ = 0;
+        return plat_.watchdog_pet().ok();
+    }
+    const uint64_t now_mono = ts_.mono_ns();
+    if (grace_start_mono_ == 0) grace_start_mono_ = now_mono;
+    if (watchdog_grace_s_ > 0.0 && double(now_mono - grace_start_mono_) / 1e9 < watchdog_grace_s_) return plat_.watchdog_pet().ok();
+    // Grace expired: stop petting. The hardware watchdog is the last resort.
+    return false;
 }
 
 /// @brief Look up one spoke.

@@ -57,7 +57,11 @@ struct IstateOptions
     std::string pst_root;         ///< /pst (or test root).
     std::string run_dir;          ///< /run/instrumentation.
     std::string build_version;    ///< Build version.
-    double liveness_hang_timeout_s = 30;       ///< Liveness hang threshold.
+    double liveness_hang_timeout_s = 30;       ///< Liveness failure threshold (= heartbeat_failure_timeout_s).
+    double heartbeat_interval_s = 5;           ///< Peer heartbeat cadence (s): HQ heartbeat + spoke liveness sweep.
+    double heartbeat_warning_timeout_s = 15;   ///< Peer silence before the warning (degraded) tier.
+    double watchdog_timeout_s = 60;            ///< Hardware watchdog timeout istate programs.
+    std::string hq_endpoint;                   ///< HQ tunnel endpoint used when the device must supply one.
     uint64_t spool_max_bytes = 64ull * 1024 * 1024;   ///< Northbound spool budget.
     double budget_spool = 64ull * 1024 * 1024;    ///< Spool consumer budget.
     double budget_logs = 128ull * 1024 * 1024;    ///< Logs consumer budget.
@@ -167,11 +171,25 @@ class IstateCore
         return plat_;
     }
     /// @brief Runtime options.
-    /// @return Runtime options.
-    const IstateOptions& options() const
+    ///
+    /// Returns a copy: istate applies its own configuration from any gRPC
+    /// thread (config write listener), so callers must not iterate a
+    /// reference that a concurrent apply could mutate.
+    /// @return Copy of the runtime options.
+    IstateOptions options() const
     {
+        std::lock_guard<std::mutex> lk(opts_mu_);
         return opts_;
     }
+
+    /// @brief Apply istate's own configuration from /pst (§6, §9).
+    ///
+    /// istate is the one daemon that reads its own config file: heartbeat
+    /// cadence and thresholds, watchdog timeout, HQ endpoint and the time
+    /// policy it owns (R8) are all runtime-effective here, and the heartbeat
+    /// cadence is relayed to every spoke. Called at boot, after every write
+    /// to istate's config (write listener), and for deliver_config("istate").
+    void apply_own_config();
 
     /// @brief Time policy (istate owns policy; networkd applies, §R8).
     /// @{
@@ -388,7 +406,8 @@ class IstateCore
     }
 
   private:
-    IstateOptions opts_;              ///< Runtime options.
+    IstateOptions opts_;              ///< Runtime options (guarded by opts_mu_).
+    mutable std::mutex opts_mu_;       ///< Guards opts_ against concurrent applies.
     IFileSystem& fs_;                  ///< Storage backend.
     platform::IPlatform& plat_;        ///< Platform (not owned).
     TimeSource& ts_;                   ///< Clock (not owned).
@@ -406,6 +425,7 @@ class IstateCore
     AuditLog audit_;                   ///< Audit trail.
     TimeReconciler reconciler_;        ///< Wall-clock reconciliation.
     TimePolicyState time_policy_;      ///< Current time policy.
+    std::string time_policy_json_;     ///< Last applied time-policy args (relayed to late registerers).
 
     mutable std::mutex config_mu_;     ///< Guards config_revisions_/config_acks_.
     std::map<std::string, uint64_t> config_revisions_;    ///< Delivered revision per daemon.
