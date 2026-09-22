@@ -31,6 +31,7 @@
 #include <cstdio>
 #include <fstream>
 #include <set>
+#include <unistd.h>
 
 #include "instr/alarms_gen.h"
 #include "instr/common/daemon_skeleton.h"
@@ -160,10 +161,23 @@ int main(int argc, char** argv)
     }
 
     // HQ session: last in the startup order, never a precondition (§7.1).
+    // Gate on a provisioned transport (task 009, H11): the default dial target
+    // is a local bridge socket that no production component serves — retrying
+    // forever against a socket that never exists was noise, and hid the fact
+    // that the HqPeer path has no HQ-side server. With INSTR_HQ_TARGET set, or
+    // the bridge socket present, the session starts; otherwise istate runs
+    // disconnected, honestly, and the northbound spool retains until one is
+    // provisioned.
     std::string hq_target = "unix:" + run_dir + "/hq.sock";
     if (const char* env = ::getenv("INSTR_HQ_TARGET")) hq_target = env;
+    const bool hq_transport_provisioned =
+        ::getenv("INSTR_HQ_TARGET") != nullptr || ::access((run_dir + "/hq.sock").c_str(), F_OK) == 0;
+    if (!hq_transport_provisioned)
+    {
+        log.warning(args.name, "HQ transport not provisioned (no INSTR_HQ_TARGET, no " + run_dir + "/hq.sock) — northbound session disabled; provision a bridge or tunnel target to enable it");
+    }
     instr::istate::HqClient hq(core, log, hq_target);
-    hq.start();
+    if (hq_transport_provisioned) hq.start();
 
     core.boot(defaults);
     instr::sd_notify_ready();

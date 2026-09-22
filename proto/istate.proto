@@ -118,6 +118,20 @@ message BudgetStatus {
 message BudgetsRequest {}
 message BudgetsReply { repeated BudgetStatus budgets = 1; }
 
+// ---- Configuration bridge: spooled northbound data (task 009, H6) ----------
+// istate spools every northbound record (telemetry, faults, alarms, log refs,
+// spoke events) for delivery to HQ. The device's HQ agent lives in the
+// Configuration process, so Configuration needs a subscription API over these
+// records — the only previous egress was the HqPeer session, which nothing on
+// the HQ side implements. Server-stream: replays spooled records newer than
+// since_mono_ns (bounded), then follows live records. Class strings match the
+// northbound spool classes used in drain: telemetry / fault / alarm /
+// log_ref / event.
+message DataStreamSpec {
+  repeated string classes = 1;  // empty = all classes
+  uint64 since_mono_ns = 2;     // replay records newer than this monotonic stamp
+}
+
 // Configuration is a gRPC-over-UDS client of istate, architecturally
 // identical to a spoke (REQ §3.3). It holds no device state.
 service ConfigurationApi {
@@ -138,6 +152,7 @@ service ConfigurationApi {
   rpc RotateKey(RotateKeyRequest) returns (common.Ack);
   rpc RelayCommand(RelayRequest) returns (common.Ack);
   rpc Budgets(BudgetsRequest) returns (BudgetsReply);
+  rpc StreamDeviceData(DataStreamSpec) returns (stream common.RelayedData);
 }
 
 // ---- Application-facing API (REQ R5, §7.6, §7.8, §6.2) ---------------------

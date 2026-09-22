@@ -127,6 +127,22 @@ class IstateCore
     {
         return tail_fanout_;
     }
+    /// @brief Northbound data fanout access (StreamDeviceData live feed).
+    /// @return The data fanout.
+    DataFanout& data_fanout()
+    {
+        return data_fanout_;
+    }
+    /// @brief Spool a northbound record and fan it out to live subscribers.
+    ///
+    /// Every spoke-originated record that is spooled for HQ must also reach
+    /// StreamDeviceData subscribers, or data could only ever leave the device
+    /// through a transport that does not exist in production (task 009, H6).
+    void spool_and_fanout(SpoolPriority prio, const std::string& cls, const std::string& payload, uint64_t mono_ns)
+    {
+        northbound_spool_.enqueue(prio, payload, mono_ns);
+        data_fanout_.publish(cls, payload, mono_ns);
+    }
     /// @brief Northbound spool access.
     /// @return The northbound spool.
     NorthboundSpool& northbound_spool()
@@ -419,6 +435,7 @@ class IstateCore
     Orchestrator orchestrator_;        ///< Spoke lifecycle.
     EventTimeline timeline_;           ///< Ordered event stream.
     TailFanout tail_fanout_;           ///< Live tail subscribers.
+    DataFanout data_fanout_;           ///< Live northbound data subscribers (task 009).
     NorthboundSpool northbound_spool_;    ///< Queue toward HQ.
     HqSession hq_session_;             ///< HQ session state machine.
     ConfigService config_service_;     ///< Config get/set/verify.

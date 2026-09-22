@@ -32,6 +32,7 @@
 
 #include "instr/common/filesystem.h"
 #include "instr/istate/northbound.h"
+#include "instr/istate/hubs.h"
 
 using namespace instr;
 using namespace instr::istate;
@@ -137,4 +138,65 @@ TEST(HqSession, BackoffAndStateTransitions)
     s.on_disconnected();
     EXPECT_EQ(s.state(), HqSession::State::Backoff);
     EXPECT_GT(s.next_delay_s(), 0.0);
+}
+
+/// @brief DataFanout delivers records to subscribers and unsubscription stops
+/// delivery (task 009, H6: StreamDeviceData live feed).
+TEST(DataFanout, SubscribePublishUnsubscribe)
+{
+    DataFanout fan;
+    std::vector<std::string> got;
+    int id = fan.subscribe([&](const std::string& cls, const std::string& payload, uint64_t) {
+        got.push_back(cls + ":" + payload);
+    });
+    EXPECT_EQ(fan.subscriber_count(), 1u);
+    fan.publish("telemetry", "{}", 42);
+    ASSERT_EQ(got.size(), 1u);
+    EXPECT_EQ(got[0], "telemetry:{}");
+    fan.unsubscribe(id);
+    EXPECT_EQ(fan.subscriber_count(), 0u);
+    fan.publish("fault", "{}", 1);
+    EXPECT_TRUE(got.empty() || got.size() == 1); // no delivery after unsubscribe
+    EXPECT_EQ(got.size(), 1u);
+}
+
+/// @brief A slow DataFanout subscriber is never a bottleneck for the
+/// publisher: the callback is synchronous, buffering/backpressure lives in
+/// the StreamDeviceData RPC's bounded buffer (task 009, H6).
+TEST(DataFanout, PublishIsSynchronousAndUnboundedSafe)
+{
+    DataFanout fan;
+    std::vector<std::string> got;
+    int id = fan.subscribe([&](const std::string& cls, const std::string& payload, uint64_t) {
+        got.push_back(cls + ":" + payload);
+    });
+    (void)id;
+    for (int i = 0; i < 800; ++i) fan.publish("event", "payload-" + std::to_string(i), uint64_t(i));
+    EXPECT_EQ(got.size(), 800u); // every record delivered synchronously
+}
+
+/// @brief Only sanctioned actors pass the Control gate; the HQ deny list
+/// matches both hyphen and underscore spellings (task 009, H4).
+TEST(ControlAllowed, ActorAndSpellingGate)
+{
+    // Sanctioned actors.
+    EXPECT_TRUE(control_allowed("configuration", "status"));
+    EXPECT_TRUE(control_allowed("hq", "status"));
+    EXPECT_TRUE(control_allowed("local", "factory-reset"));
+    // Unknown actors are refused outright.
+    EXPECT_FALSE(control_allowed("app", "status"));
+    EXPECT_FALSE(control_allowed("", "status"));
+    // HQ denied ops, both spellings.
+    for (const char* op : {"reset", "factory-reset", "factory_reset", "restart", "stop", "start",
+                           "apply-artifact", "apply_artifact", "rollback", "reboot", "shutdown"})
+    {
+        EXPECT_FALSE(control_allowed("hq", op)) << op;
+    }
+    // The same ops are allowed for the local console and the Configuration peer.
+    EXPECT_TRUE(control_allowed("local", "factory_reset"));
+    EXPECT_TRUE(control_allowed("configuration", "factory-reset"));
+    // Non-destructive HQ ops pass.
+    EXPECT_TRUE(control_allowed("hq", "status"));
+    EXPECT_TRUE(control_allowed("hq", "health"));
+    EXPECT_TRUE(control_allowed("hq", "configuration.read"));
 }

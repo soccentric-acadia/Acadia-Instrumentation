@@ -145,6 +145,7 @@ static bool decode_record(const std::string& seg, size_t& off, DiskSpool::Entry*
 /// @brief Open/create the spool directory and rebuild the index from segment files (survives restart).
 Error DiskSpool::open()
 {
+    std::lock_guard<std::mutex> lk(mu_);
     index_.clear();
     segments_.clear();
     bytes_ = 0;
@@ -281,6 +282,7 @@ Error DiskSpool::drop_one_oldest_droppable()
 /// @return ok() on success; BudgetExceeded when only protected records fit.
 Error DiskSpool::append(SpoolPriority prio, const std::string& payload, uint64_t mono_ns, int* dropped)
 {
+    std::lock_guard<std::mutex> lk(mu_);
     std::string rec = encode_record(prio, mono_ns, payload);
     uint64_t rec_size = rec.size();
 
@@ -332,6 +334,7 @@ Error DiskSpool::append(SpoolPriority prio, const std::string& payload, uint64_t
 /// @return The snapshot, oldest first.
 std::vector<DiskSpool::Entry> DiskSpool::peek(size_t max) const
 {
+    std::lock_guard<std::mutex> lk(mu_);
     std::vector<Entry> out;
     std::map<uint64_t, std::string> cache; // avoid re-reading segments
     size_t n = 0;
@@ -358,6 +361,7 @@ std::vector<DiskSpool::Entry> DiskSpool::peek(size_t max) const
 /// @return ok(), or an error when storage fails.
 Error DiskSpool::pop_front(size_t n)
 {
+    std::lock_guard<std::mutex> lk(mu_);
     if (n > index_.size()) n = index_.size();
     std::map<uint64_t, bool> affected;
     for (size_t i = 0; i < n; ++i) affected[index_[i].seg] = true;

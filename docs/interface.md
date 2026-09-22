@@ -52,7 +52,7 @@ Messages: `HealthCheckResult`, `DeviceInfo`, `HardwareSpokeFrame`, `HardwareHubF
 
 ## istate.proto (package `instr.istate`)
 
-Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot`, `SetConfigRequest`, `SetConfigReply`, `ListSpokesRequest`, `SpokeStatus`, `SpokeStatusList`, `SpokeControlRequest`, `ResetRequest`, `EventFilter`, `TimelineEvent`, `TailSpec`, `HealthScoreRequest`, `HealthScoreReply`, `EnrollmentRequest`, `EnrollmentStatus`, `RotateKeyRequest`, `RelayRequest`, `BudgetStatus`, `BudgetsRequest`, `BudgetsReply`, `RaiseAlarmRequest`, `ClearAlarmRequest`, `AlarmAck`, `RegisterMetricRequest`, `MetricSample`, `ReportMetricsRequest`, `ReportMetricsReply`, `SetAppConfigRequest`, `EventsFrame`, `FaultsFrame`, `DeviceFrame`, `HqFrame`
+Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot`, `SetConfigRequest`, `SetConfigReply`, `ListSpokesRequest`, `SpokeStatus`, `SpokeStatusList`, `SpokeControlRequest`, `ResetRequest`, `EventFilter`, `TimelineEvent`, `TailSpec`, `HealthScoreRequest`, `HealthScoreReply`, `EnrollmentRequest`, `EnrollmentStatus`, `RotateKeyRequest`, `RelayRequest`, `BudgetStatus`, `BudgetsRequest`, `BudgetsReply`, `DataStreamSpec`, `RaiseAlarmRequest`, `ClearAlarmRequest`, `AlarmAck`, `RegisterMetricRequest`, `MetricSample`, `ReportMetricsRequest`, `ReportMetricsReply`, `SetAppConfigRequest`, `EventsFrame`, `FaultsFrame`, `DeviceFrame`, `HqFrame`
 
 ### service `ConfigurationApi`
 
@@ -75,6 +75,7 @@ Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot
 | `RotateKey` | `RotateKeyRequest` | `common.Ack` | unary |
 | `RelayCommand` | `RelayRequest` | `common.Ack` | unary |
 | `Budgets` | `BudgetsRequest` | `BudgetsReply` | unary |
+| `StreamDeviceData` | `DataStreamSpec` | `common.RelayedData` | server-stream |
 
 ### service `ApplicationApi`
 

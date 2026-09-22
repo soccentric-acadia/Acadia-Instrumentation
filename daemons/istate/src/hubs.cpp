@@ -47,6 +47,10 @@
 
 #include <cerrno>
 #include <cstring>
+#include <deque>
+#include <functional>
+#include <mutex>
+#include <set>
 
 namespace instr
 {
@@ -70,14 +74,26 @@ std::vector<OperationCatalogEntry> operation_catalog()
         {"ota", ota::build_ota_table(nullptr)},          {"backup", backup::build_backup_table(nullptr)},
     };
 }
+} // namespace
 
 bool control_allowed(const std::string& actor, const std::string& op)
 {
     if (actor != "configuration" && actor != "hq" && actor != "local") return false;
-    if (actor == "hq" && (op == "reset" || op == "factory-reset" || op == "restart" || op == "stop" || op == "start" || op == "apply-artifact" || op == "rollback")) return false;
-    return true;
+    if (actor != "hq") return true;
+    // Destructive operations stay local (§3.2/§10): the command tables spell
+    // them with hyphens, but a remote actor must not slip through by spelling
+    // them with underscores (task 009, H4). Normalize both spellings before
+    // the deny check so the gate is table-name-based, not string-luck.
+    std::string normalized;
+    normalized.reserve(op.size());
+    for (char c : op) normalized.push_back(c == '-' ? '_' : c);
+    static const std::set<std::string> hq_denied = {
+        "reset",           "factory_reset", "restart", "stop", "start",
+        "apply_artifact",  "rollback",      "reboot",  "shutdown", "spoke_control",
+        "unit_start",      "unit_stop",     "unit_restart",
+    };
+    return hq_denied.count(normalized) == 0;
 }
-} // namespace
 
 using transport::GenericHubMsg;
 using transport::GenericSpokeMsg;
@@ -628,10 +644,37 @@ class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service, telem
         {
             m.type = "batch";
             JValue o = JValue::object();
-            o.set("records", JValue(double(f.batch().records_size())));
+            // Full records, not just a count: this payload is what the
+            // StreamDeviceData bridge maps onto the HQ telemetry frame, so
+            // dropping the samples here would make device→HQ telemetry a
+            // summary-only feed (task 009, H6).
+            JValue recs = JValue::array();
+            for (const auto& r : f.batch().records())
+            {
+                JValue rec = JValue::object();
+                rec.set("metric", JValue(r.metric()));
+                rec.set("value", JValue(r.value()));
+                rec.set("unit", JValue(r.unit()));
+                JValue tags = JValue::object();
+                for (const auto& kv : r.tags()) tags.set(kv.first, JValue(kv.second));
+                rec.set("tags", tags);
+                rec.set("window_start_mono_ns", JValue(double(r.window_start_mono_ns())));
+                rec.set("window_end_mono_ns", JValue(double(r.window_end_mono_ns())));
+                recs.push(rec);
+            }
+            o.set("records", recs);
+            o.set("record_count", JValue(double(f.batch().records_size())));
             o.set("health_score", JValue(f.batch().health().score()));
+            JValue factors = JValue::object();
+            for (const auto& kv : f.batch().health().factors()) factors.set(kv.first, JValue(kv.second));
+            o.set("health_factors", factors);
             o.set("firmware_version", JValue(f.batch().firmware_version()));
+            o.set("config_schema_version", JValue(f.batch().config_schema_version()));
+            o.set("hardware_revision", JValue(f.batch().hardware_revision()));
+            o.set("device_serial", JValue(f.batch().device_serial()));
             o.set("mono_ns", JValue(double(f.batch().ts().mono_ns())));
+            if (f.batch().ts().wall_valid())
+                o.set("wall_unix_ms", JValue(double(f.batch().ts().wall_unix_ns() / 1'000'000)));
             m.payload_json = o.dump();
             m.ts = f.batch().ts();
         }
@@ -1217,6 +1260,116 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Map a spool priority to the drain/fanout class vocabulary.
+    /// @param p Spool eviction class.
+    /// @return Class string (telemetry/fault/alarm/log_ref/event).
+    static const char* spool_class(SpoolPriority p)
+    {
+        switch (p)
+        {
+        case SpoolPriority::Telemetry: return "telemetry";
+        case SpoolPriority::LogRef: return "log_ref";
+        case SpoolPriority::Fault: return "fault";
+        case SpoolPriority::Alarm: return "alarm";
+        case SpoolPriority::Event: return "event";
+        }
+        return "event";
+    }
+
+    /// @brief Configuration bridge: stream spooled northbound data (task 009, H6).
+    ///
+    /// Replay a bounded non-destructive snapshot (records newer than
+    /// since_mono_ns), then follow the live DataFanout until the client goes
+    /// away. The subscribe-before-replay ordering plus a snapshot key set
+    /// keeps the boundary gap-free and duplicate-free without a global record
+    /// sequence.
+    /// @param ctx Server context (cancellation checks the live loop).
+    /// @param req Class filter + replay watermark.
+    /// @param writer Stream of relayed records.
+    /// @return gRPC status when the stream ends.
+    grpc::Status StreamDeviceData(grpc::ServerContext* ctx, const istate::DataStreamSpec* req, grpc::ServerWriter<common::RelayedData>* writer) override
+    {
+        std::set<std::string> classes;
+        for (const auto& c : req->classes()) classes.insert(c);
+        auto wanted = [&](const std::string& cls) { return classes.empty() || classes.count(cls) != 0; };
+        const uint64_t since = req->since_mono_ns();
+
+        // Live buffering: subscribe first so records arriving during the
+        // replay snapshot are queued instead of lost.
+        std::mutex pending_mu;
+        std::deque<common::RelayedData> pending;
+        static constexpr size_t kMaxPending = 2048;
+        auto sub = core_.data_fanout().subscribe([&](const std::string& cls, const std::string& payload, uint64_t mono_ns) {
+            if (!wanted(cls)) return;
+            common::RelayedData rec;
+            rec.set_source_daemon("istate");
+            rec.set_type(cls);
+            rec.set_payload_json(payload);
+            rec.mutable_ts()->set_mono_ns(mono_ns);
+            std::lock_guard<std::mutex> lk(pending_mu);
+            if (pending.size() >= kMaxPending) pending.pop_front(); // oldest first, mirror spool drop policy
+            pending.push_back(std::move(rec));
+        });
+
+        auto write_record = [&writer](const common::RelayedData& rec) { return writer->Write(rec); };
+
+        // Replay: bounded snapshot, filtered by watermark and class.
+        static constexpr size_t kReplayMax = 512;
+        std::set<std::string> replayed_keys; // dedup for records buffered during the replay window
+        for (const auto& e : core_.northbound_spool().peek(kReplayMax))
+        {
+            const char* cls = spool_class(e.priority);
+            if (e.mono_ns <= since || !wanted(cls)) continue;
+            common::RelayedData rec;
+            rec.set_source_daemon("istate");
+            rec.set_type(cls);
+            rec.set_payload_json(e.payload);
+            rec.mutable_ts()->set_mono_ns(e.mono_ns);
+            if (!write_record(rec))
+            {
+                core_.data_fanout().unsubscribe(sub);
+                return grpc::Status::OK;
+            }
+            // Dedup key: same class+time+payload may already sit in the live
+            // buffer if it was published between subscribe and the peek.
+            replayed_keys.insert(std::string(cls) + "|" + std::to_string(e.mono_ns) + "|" + std::to_string(std::hash<std::string>{}(e.payload)));
+        }
+
+        // Drain the records buffered during the replay, skipping replayed ones.
+        auto drain_pending = [&]() {
+            std::deque<common::RelayedData> batch;
+            {
+                std::lock_guard<std::mutex> lk(pending_mu);
+                batch.swap(pending);
+            }
+            for (auto& rec : batch)
+            {
+                const std::string key = rec.type() + "|" + std::to_string(rec.ts().mono_ns()) + "|" + std::to_string(std::hash<std::string>{}(rec.payload_json()));
+                if (replayed_keys.count(key)) continue;
+                if (!write_record(rec)) return false;
+            }
+            return true;
+        };
+        if (!drain_pending())
+        {
+            core_.data_fanout().unsubscribe(sub);
+            return grpc::Status::OK;
+        }
+
+        // Live loop: forward fanout records until the client goes away.
+        while (!ctx->IsCancelled())
+        {
+            if (!drain_pending()) break;
+            struct timespec ts
+            {
+                0, 100 * 1000 * 1000
+            };
+            nanosleep(&ts, nullptr);
+        }
+        core_.data_fanout().unsubscribe(sub);
+        return grpc::Status::OK;
+    }
+
   private:
     IstateCore& core_;
 };
@@ -1724,8 +1877,26 @@ bool HqClient::try_session()
             else if (hf.has_ota_command() || hf.has_command())
             {
                 const common::Command& cmd = hf.has_ota_command() ? hf.ota_command() : hf.command();
-                std::string daemon = hf.has_ota_command() ? "ota" : cmd.issued_by();
-                core_.relay_command(daemon.empty() ? "ota" : daemon, cmd);
+                // Target resolution (task 009, H13): ota_command is always
+                // OTA; a generic command must name its daemon in json_args.
+                // Command.issued_by is the audit issuer, not a routing key —
+                // the old code relayed generic commands to a non-existent
+                // "hq" daemon.
+                std::string daemon = hf.has_ota_command() ? std::string("ota") : std::string();
+                if (daemon.empty())
+                {
+                    auto j = json_parse(cmd.json_args());
+                    if (j.ok() && !(*j).get_string("daemon").empty()) daemon = (*j).get_string("daemon");
+                }
+                if (daemon.empty())
+                {
+                    log_.error("istate", "HQ generic command refused: no daemon in json_args");
+                    core_.push_event_to_spool("{\"kind\":\"hq_command_refused\",\"reason\":\"no_daemon\"}");
+                }
+                else
+                {
+                    core_.relay_command(daemon, cmd);
+                }
             }
         }
         open = false;

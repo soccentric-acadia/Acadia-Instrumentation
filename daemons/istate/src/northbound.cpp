@@ -113,6 +113,54 @@ void TailFanout::publish(const std::string& json_line)
     }
 }
 
+// ---------------- DataFanout (task 009, H6) ----------------
+
+/// @brief Subscribe to the live northbound data feed.
+/// @param s Record callback.
+/// @return A subscription id for unsubscribe().
+int DataFanout::subscribe(Subscriber s)
+{
+    std::lock_guard<std::mutex> lk(mu_);
+    int id = next_id_++;
+    Sub sub;
+    sub.id = id;
+    sub.fn = std::move(s);
+    subs_.push_back(std::move(sub));
+    return id;
+}
+
+/// @brief Cancel a data subscription.
+/// @param id Subscription to cancel.
+void DataFanout::unsubscribe(int id)
+{
+    std::lock_guard<std::mutex> lk(mu_);
+    for (auto it = subs_.begin(); it != subs_.end(); ++it)
+        if (it->id == id)
+        {
+            subs_.erase(it);
+            break;
+        }
+}
+
+/// @brief Publish one record to all subscribers.
+/// @param cls Spool class name.
+/// @param payload Record JSON.
+/// @param mono_ns Monotonic production time.
+void DataFanout::publish(const std::string& cls, const std::string& payload, uint64_t mono_ns)
+{
+    std::lock_guard<std::mutex> lk(mu_);
+    for (auto& sub : subs_)
+        if (sub.fn) sub.fn(cls, payload, mono_ns);
+}
+
+/// @brief Number of active subscribers (diagnostics).
+/// @return Active subscriber count.
+size_t DataFanout::subscriber_count() const
+{
+    std::lock_guard<std::mutex> lk(mu_);
+    return subs_.size();
+}
+
 // ---------------- NorthboundSpool ----------------
 
 /// @brief Bind the spool to storage, config and budgets.
@@ -162,6 +210,13 @@ Result<bool> NorthboundSpool::enqueue(SpoolPriority prio, const std::string& pay
 NorthboundSpool::DrainReport NorthboundSpool::drain(const std::function<bool(const DiskSpool::Entry&)>& send, size_t max_batch)
 {
     DrainReport rep;
+    // One drain pass at a time (task 009 audit A1): peek → send → pop_front is
+    // a three-step composite; two concurrent drains would double-send records
+    // or pop records another drain never sent. The lock is held across the
+    // send callbacks (the HQ stream write) — that serializes ctrl-driven
+    // drains with the HQ session thread, but enqueue is on DiskSpool's own
+    // lock and never blocks behind a drain.
+    std::lock_guard<std::mutex> drain_lk(drain_mu_);
     auto records = spool_.peek(max_batch);
     for (const auto& r : records)
     {

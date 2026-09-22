@@ -51,6 +51,16 @@ namespace instr
 namespace istate
 {
 
+/// @brief Remote-actor authorization gate for `Control`/HQ commands (§3.2, §10).
+///
+/// Only the three sanctioned actors may operate; `hq` is denied the
+/// destructive operations regardless of hyphen/underscore spelling (task 009,
+/// H4: the deny list is table-name-based, not string-luck).
+/// @param actor Requested actor (configuration / hq / local).
+/// @param op Operation name from the command tables.
+/// @return True when the actor may run @p op.
+bool control_allowed(const std::string& actor, const std::string& op);
+
 /// @brief Builds and runs the full gRPC server for istate (all hub services).
 ///
 /// Hub impls derive from the generated nested `<X>Hub::Service` classes.

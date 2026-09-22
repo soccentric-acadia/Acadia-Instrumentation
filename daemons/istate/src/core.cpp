@@ -121,6 +121,7 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
         timeline_.append("boot", "istate", "{\"unclean_shutdown\":true}", ts_);
         pending_alarms_.push_back({INSTR_ALARM_ISTATE_UNCLEAN_SHUTDOWN, "previous shutdown left no clean-shutdown marker"});
         northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"unclean_shutdown\"}", ts_.mono_ns());
+        data_fanout_.publish("event", "{\"kind\":\"unclean_shutdown\"}", ts_.mono_ns());
     }
     // Clear it for this run: a crash now leaves no marker for the next boot.
     fs_.remove(clean_shutdown_marker_path(), false);
@@ -152,6 +153,7 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
             ev.set("added_keys", keys);
             timeline_.append("config", "istate", ev.dump(), ts_);
             northbound_spool_.enqueue(SpoolPriority::Event, ev.dump(), ts_.mono_ns());
+            data_fanout_.publish("event", ev.dump(), ts_.mono_ns());
             audit_.append("istate", "update", "config_migration", ev.dump(), ts_);
         }
     }
@@ -293,6 +295,7 @@ void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg)
             log_.error("istate", "config rejected by " + msg.daemon + ": " + st.reason);
             timeline_.append("config", msg.daemon, "{\"config_rejected\":true,\"reason\":\"" + st.reason + "\"}", ts_);
             northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"config_rejected\",\"daemon\":\"" + msg.daemon + "\"}", ts_.mono_ns());
+            data_fanout_.publish("event", "{\"kind\":\"config_rejected\",\"daemon\":\"" + msg.daemon + "\"}", ts_.mono_ns());
         }
         return;
     }
@@ -307,19 +310,19 @@ void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg)
         relay.relay.mutable_ts()->CopyFrom(msg.ts);
         if (relay_to_spoke_) relay_to_spoke_("telemetry", relay);
         // Also spool a compact telemetry record northbound.
-        northbound_spool_.enqueue(SpoolPriority::Telemetry, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Telemetry, "telemetry", msg.payload_json, msg.ts.mono_ns());
     }
     else if (msg.type == "fault")
     {
         // Faults are protected: never dropped (§11).
-        northbound_spool_.enqueue(SpoolPriority::Fault, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Fault, "fault", msg.payload_json, msg.ts.mono_ns());
         timeline_.append("fault", msg.daemon, msg.payload_json, ts_);
     }
     else if (msg.type == "alarm")
     {
         // Alarm state changes go to istate directly as events (§7.6) — protected
         // class, never delayed by batching.
-        northbound_spool_.enqueue(SpoolPriority::Alarm, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Alarm, "alarm", msg.payload_json, msg.ts.mono_ns());
         timeline_.append("alarm", msg.daemon, msg.payload_json, ts_);
         // Snapshot-on-fault requests trigger a bounded diagnostic capture via
         // LogManager (evidence at the moment it matters).
@@ -341,34 +344,34 @@ void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg)
     {
         // Live tail fanout to HQ and Configuration (§7.1).
         tail_fanout_.publish(msg.payload_json);
-        northbound_spool_.enqueue(SpoolPriority::LogRef, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::LogRef, "log_ref", msg.payload_json, msg.ts.mono_ns());
     }
     else if (msg.type == "bundle")
     {
         // Bulk transfer by handle: control path carries handle + metadata only.
-        northbound_spool_.enqueue(SpoolPriority::LogRef, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::LogRef, "log_ref", msg.payload_json, msg.ts.mono_ns());
     }
     else if (msg.type == "ota_event")
     {
         timeline_.append("update", msg.daemon, msg.payload_json, ts_);
-        northbound_spool_.enqueue(SpoolPriority::Event, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Event, "event", msg.payload_json, msg.ts.mono_ns());
     }
     else if (msg.type == "backup_event")
     {
         timeline_.append("backup", msg.daemon, msg.payload_json, ts_);
-        northbound_spool_.enqueue(SpoolPriority::Event, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Event, "event", msg.payload_json, msg.ts.mono_ns());
     }
     else if (msg.type == "network_event")
     {
         timeline_.append("network", msg.daemon, msg.payload_json, ts_);
-        northbound_spool_.enqueue(SpoolPriority::Event, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Event, "event", msg.payload_json, msg.ts.mono_ns());
     }
-    else if (msg.type == "health_result") { northbound_spool_.enqueue(SpoolPriority::Telemetry, msg.payload_json, msg.ts.mono_ns()); }
+    else if (msg.type == "health_result") { spool_and_fanout(SpoolPriority::Telemetry, "telemetry", msg.payload_json, msg.ts.mono_ns()); }
     else if (msg.type == "batch")
     {
         // Telemetry batches: spool northbound (protected of drops: telemetry is
         // the droppable class, §11).
-        northbound_spool_.enqueue(SpoolPriority::Telemetry, msg.payload_json, msg.ts.mono_ns());
+        spool_and_fanout(SpoolPriority::Telemetry, "telemetry", msg.payload_json, msg.ts.mono_ns());
     }
 }
 

@@ -6,7 +6,7 @@
   "proto_schema_version": 3,
   "proto_descriptor": {
     "path": "proto-schema-v3.pb",
-    "sha256": "c3c11569f56c9b443834cada0f49b601a5ca2fad5d9c69fb3b08122bb3108f58"
+    "sha256": "8bd9d5e5ecb9b92770f0fc869181b67ab259a5a2428dc9cdb62fefc34fa3b469"
   },
   "alarm_catalog": {
     "revision": 1,

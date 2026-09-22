@@ -37,6 +37,7 @@
 #pragma once
 #include <cstdint>
 #include <deque>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -127,20 +128,23 @@ class DiskSpool
         uint64_t refused_protected = 0; ///< Appends refused because only protected records fit.
     };
     /// @brief Current statistics snapshot.
-    /// @return Current statistics snapshot.
-    const Stats& stats() const
+    /// @return Current statistics snapshot (by value; thread-safe read).
+    Stats stats() const
     {
+        std::lock_guard<std::mutex> lk(mu_);
         return stats_;
     }
 
     /// @brief Number of records currently indexed.
     size_t size() const
     {
+        std::lock_guard<std::mutex> lk(mu_);
         return index_.size();
     }
     /// @brief Bytes currently stored across segments.
     uint64_t bytes() const
     {
+        std::lock_guard<std::mutex> lk(mu_);
         return bytes_;
     }
 
@@ -198,6 +202,13 @@ class DiskSpool
     uint64_t bytes_ = 0; ///< Total bytes stored.
     uint64_t seg_offset_ = 0; ///< Write offset in the current segment.
     Stats stats_; ///< Lifetime statistics.
+    /// @brief Guards index_, stats_ and segment state (task 009 audit A1).
+    ///
+    /// The spool is touched from several threads (hub-RPC enqueues, the HQ
+    /// drain thread, ctrl ops and the StreamDeviceData replay), so every
+    /// public method takes this lock. The private helpers assume it is held
+    /// and must only be called while it is.
+    mutable std::mutex mu_;
 };
 
 } // namespace instr

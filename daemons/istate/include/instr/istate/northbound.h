@@ -128,6 +128,46 @@ class TailFanout
     std::mutex mu_;            ///< Guards subs_.
 };
 
+/// @brief Northbound data fanout: live feed of spooled HQ-bound records to
+/// StreamDeviceData subscribers (task 009, H6).
+///
+/// Mirrors TailFanout: publish is synchronous, the callback is invoked under
+/// the fanout lock (subscribers must not call back into the fanout), and the
+/// fanout itself retains nothing — stream buffering lives in the RPC layer,
+/// bounded there with oldest-first drops mirroring the spool drop policy.
+class DataFanout
+{
+  public:
+    /// @brief One record callback: spool class, payload, production time.
+    using Subscriber = std::function<void(const std::string& cls, const std::string& payload, uint64_t mono_ns)>;
+    /// @brief Subscribe; returns a subscription id for unsubscribe().
+    /// @param s Record callback.
+    /// @return A subscription id for unsubscribe().
+    int subscribe(Subscriber s);
+    /// @brief Cancel a subscription.
+    /// @param id Subscription to cancel.
+    void unsubscribe(int id);
+    /// @brief Publish one record to every subscriber.
+    /// @param cls Spool class name (telemetry/fault/alarm/log_ref/event).
+    /// @param payload Record JSON.
+    /// @param mono_ns Monotonic production time.
+    void publish(const std::string& cls, const std::string& payload, uint64_t mono_ns);
+    /// @brief Active subscriber count (diagnostics).
+    /// @return Subscriber count.
+    size_t subscriber_count() const;
+
+  private:
+    /// @brief One subscriber.
+    struct Sub
+    {
+        int id;            ///< Subscription id.
+        Subscriber fn;     ///< Record callback (invoked under mu_).
+    };
+    std::vector<Sub> subs_;    ///< Active subscribers.
+    int next_id_ = 1;          ///< Subscription id generator.
+    mutable std::mutex mu_;    ///< Guards subs_.
+};
+
 /// @brief Northbound spool: disk-backed queue to HQ with drop policy and budgeting.
 class NorthboundSpool
 {
@@ -166,8 +206,9 @@ class NorthboundSpool
     /// @return The drain report.
     DrainReport drain(const std::function<bool(const DiskSpool::Entry&)>& send, size_t max_batch);
     /// @brief Lifetime spool statistics.
-    /// @return Lifetime spool statistics.
-    const DiskSpool::Stats& stats() const
+    /// @return Lifetime spool statistics (by value; DiskSpool::stats is a
+    /// thread-safe read, and a const-ref return would dangle against it).
+    DiskSpool::Stats stats() const
     {
         return spool_.stats();
     }
@@ -176,9 +217,20 @@ class NorthboundSpool
     {
         return spool_.size();
     }
+    /// @brief Non-destructive oldest-first snapshot of up to @p max records.
+    ///
+    /// Backs the StreamDeviceData replay: the RPC replays this snapshot, then
+    /// follows the live fanout (gap-free boundary handled by the subscriber).
+    /// @param max Maximum entries returned.
+    /// @return The snapshot, oldest first.
+    std::vector<DiskSpool::Entry> peek(size_t max) const
+    {
+        return spool_.peek(max);
+    }
 
   private:
     IFileSystem& fs_;            ///< Storage backend.
+    std::mutex drain_mu_;        ///< Serializes drain passes (task 009 audit A1).
     DiskSpool spool_;            ///< Backing spool.
     BudgetManager* budgets_;     ///< Budget enforcement (may be null in tests).
 };
