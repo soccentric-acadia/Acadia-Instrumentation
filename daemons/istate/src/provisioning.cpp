@@ -163,6 +163,11 @@ Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation, const Enr
     // 5. Sign the public key with the factory identity; enroll with HQ.
     auto fid = plat_.read_factory_identity();
     if (!fid.ok()) return Result<DeviceIdentity>::fail(fid.error);
+    // INS-005: refuse to enroll with an empty factory secret — the HMAC would
+    // be a fleet-wide constant, which defeats the whole point of the
+    // factory signature.
+    if (fid->identity_secret.empty())
+        return Result<DeviceIdentity>::fail(Errc::Unavailable, "no factory secret — enrollment refused", "provision");
     std::string sig(reinterpret_cast<const char*>(crypto::hmac_sha256(fid->identity_secret, pub_b64).b.data()), 32);
     identity_.factory_sig = crypto::base64_encode(sig);
     state_ = State::Enrolling;

@@ -169,6 +169,12 @@ Result<tar::FileEntry> BackupEngine::decrypt_archive(const std::string& blob) co
 /// @return Archive summary, or an error.
 Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, const std::vector<std::string>& excludes, const std::string& archive_dir, int64_t now_unix_s)
 {
+    // INS-005: refuse to seal with an empty identity secret. An empty secret
+    // would make the archive key a fleet-wide constant (HKDF over ""), so
+    // every device's backups would share one trivially known key.
+    if (opts_.identity_secret.empty())
+        return Result<ArchiveInfo>::fail(Errc::Unavailable, "no factory secret — archive sealing refused", "create");
+
     std::vector<std::pair<std::string, std::string>> files;
     for (const auto& p : paths) collect(fs_, p, "", excludes, &files);
 

@@ -78,6 +78,10 @@ int main(int argc, char** argv)
     opts.firmware_version = INSTR_VERSION;
     auto secret = fs.read(root + "/run/instrumentation/enrollment-secret");
     opts.identity_secret = secret.ok() ? *secret : "";
+    // INS-005: an empty secret would derive a fleet-wide archive key; refuse
+    // to seal instead (BackupEngine::create also rejects empty secrets).
+    if (opts.identity_secret.empty())
+        log.error("backup", "no enrollment secret — archive sealing disabled");
     // HQ's public key arrives with the tunnel configuration at enrollment and
     // is published by istate. Without it an archive simply is not uploaded —
     // §7.10 requires HQ uploads be encrypted to HQ's key, so "send it in the

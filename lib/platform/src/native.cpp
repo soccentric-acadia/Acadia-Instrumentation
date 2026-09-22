@@ -150,10 +150,16 @@ Result<FactoryIdentity> NativePlatform::read_factory_identity()
     id.board_variant = get("board_variant");
     id.mfg_date = get("mfg_date");
     id.hostname_base = get("hostname_base");
+    // INS-005: a missing /pst/factory/identity/.secret must NOT silently
+    // become an empty string — downstream consumers derive backup keys and
+    // provisioning HMACs from it, and an empty fleet-wide constant would
+    // make every device's "keys" decryptable with the empty input. Refuse
+    // to report a usable factory identity without the secret.
     auto secret = read_file("/pst/factory/identity/.secret");
     id.identity_secret = secret.ok() ? *secret : "";
-    id.valid = !id.serial.empty();
-    if (!id.valid) return Result<FactoryIdentity>::fail(Errc::Corrupt, "identity.yaml incomplete", "factory identity");
+    id.valid = !id.serial.empty() && !id.identity_secret.empty();
+    if (id.serial.empty()) return Result<FactoryIdentity>::fail(Errc::Corrupt, "identity.yaml incomplete", "factory identity");
+    if (id.identity_secret.empty()) return Result<FactoryIdentity>::fail(Errc::NotFound, "factory secret (.secret) missing — refusing to seal/enroll", "factory identity");
     return Result<FactoryIdentity>::good(id);
 }
 
