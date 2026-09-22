@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-21 — Cross-repo API surface audit: istate contract extensions (task 009)
+
+### Added
+
+- Extended `istate.proto` with the telemetry, fault, and log-manager
+  contract extensions, spool support for log bundles, and the
+  DataFanout / ControlAllowed northbound paths; refreshed contract
+  golden hash and device/compatibility contract artifacts.
+
 ## 2026-09-21 — Heartbeat wiring, istate self-configuration and review repairs
 
 ### Fixed
