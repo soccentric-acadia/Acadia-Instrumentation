@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -45,7 +45,7 @@ int main(int argc, char** argv)
     auto args = instr::parse_daemon_args(argc, argv, "faults");
     if (args.help)
     {
-        std::printf("faults — passive kernel-log fault detection (Arches Instrumentation)\n"
+        std::printf("faults — passive kernel-log fault detection (Acadia Instrumentation)\n"
                     "usage: faults [--socket PATH] [--hub PATH] [--root PATH]\n"
                     "       [--platform native|simulated] [--help]\n");
         return 0;

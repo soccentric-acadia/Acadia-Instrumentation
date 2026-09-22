@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)

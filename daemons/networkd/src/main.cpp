@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -43,7 +43,7 @@ int main(int argc, char** argv)
     auto args = instr::parse_daemon_args(argc, argv, "networkd");
     if (args.help)
     {
-        std::printf("networkd — network/firewall/tunnel/time daemon (Arches Instrumentation)\n"
+        std::printf("networkd — network/firewall/tunnel/time daemon (Acadia Instrumentation)\n"
                     "usage: networkd [--socket PATH] [--hub PATH] [--root PATH]\n"
                     "       [--platform native|simulated] [--help]\n");
         return 0;

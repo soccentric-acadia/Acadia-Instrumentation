@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -43,7 +43,7 @@ int main(int argc, char** argv)
     auto args = instr::parse_daemon_args(argc, argv, "ota");
     if (args.help)
     {
-        std::printf("ota — SWUpdate-based update manager (Arches Instrumentation)\n"
+        std::printf("ota — SWUpdate-based update manager (Acadia Instrumentation)\n"
                     "usage: ota [--socket PATH] [--hub PATH] [--root PATH]\n"
                     "       [--platform native|simulated] [--help]\n");
         return 0;

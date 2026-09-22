@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -72,7 +72,7 @@ struct Args
 /// @brief Print usage.
 void usage()
 {
-    std::printf("instr-rt-test — PREEMPT_RT feature demonstration (Arches Instrumentation)\n"
+    std::printf("instr-rt-test — PREEMPT_RT feature demonstration (Acadia Instrumentation)\n"
                 "Not a daemon: runs once, prints a comparison table, stores a JSON result file, exits.\n"
                 "usage: instr-rt-test [--out PATH|-] [--duration SECONDS] [--load on|off]\n"
                 "                     [--prio N] [--threads N] [--json] [--quiet] [--help]\n"

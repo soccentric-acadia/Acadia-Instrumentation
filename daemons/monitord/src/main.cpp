@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     auto args = instr::parse_daemon_args(argc, argv, "monitord");
     if (args.help)
     {
-        std::printf("monitord — system resource monitoring daemon (Arches Instrumentation)\n"
+        std::printf("monitord — system resource monitoring daemon (Acadia Instrumentation)\n"
                     "usage: monitord [--socket PATH] [--hub PATH] [--root PATH]\n"
                     "       [--platform native|simulated] [--help]\n");
         return 0;

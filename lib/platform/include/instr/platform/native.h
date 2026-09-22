@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -47,9 +47,9 @@ namespace platform
 
 /// @brief Mount point of the boot partition, where the A/B slot flag files live.
 ///
-/// Arches-OS mounts the boot partition at `/boot` on all three wic layouts
+/// Acadia-OS mounts the boot partition at `/boot` on all three wic layouts
 /// (`meta/meta-arches/wic/*.wks`, `part /boot`). This used to be hardcoded to
-/// `/mnt/boot`, which exists on no Arches image -- so on a board without a
+/// `/mnt/boot`, which exists on no Acadia image -- so on a board without a
 /// U-Boot environment the flag-file fallback wrote slot state into a
 /// non-existent directory and every write failed. instr-ota.service also named
 /// `/mnt/boot` in ReadWritePaths under ProtectSystem=strict, which makes
@@ -64,7 +64,7 @@ std::string boot_dir();
 /// @brief Name of the nftables table Instrumentation owns, and the only one it
 ///        is ever permitted to create or destroy.
 ///
-/// Instrumentation shares the kernel's ruleset with Arches-Configuration, which
+/// Instrumentation shares the kernel's ruleset with Acadia-Configuration, which
 /// writes its own `webconfig` table. Neither daemon knows the other exists, so
 /// scoping is the entire safety property here: a global `flush ruleset` would
 /// drop the peer's table along with our own, and on a device where the firewall

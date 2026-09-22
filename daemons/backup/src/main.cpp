@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     auto args = instr::parse_daemon_args(argc, argv, "backup");
     if (args.help)
     {
-        std::printf("backup — snapshot /pst/system, archive, restore (Arches Instrumentation)\n"
+        std::printf("backup — snapshot /pst/system, archive, restore (Acadia Instrumentation)\n"
                     "usage: backup [--socket PATH] [--hub PATH] [--root PATH]\n"
                     "       [--platform native|simulated] [--help]\n");
         return 0;
