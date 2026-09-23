@@ -1,0 +1,2 @@
+board: cm5
+capabilities: [watchdog, display]
