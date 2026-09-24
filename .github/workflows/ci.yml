@@ -1,0 +1,43 @@
+# Acadia Instrumentation CI (INS-020). The Jenkinsfile remains the full
+# pipeline (coverage gate, clang-tidy, TSan on the build image); this
+# workflow gives every push and PR the same baseline gates the other Acadia
+# leaves run on GitHub: build, the full ctest suite, formatting, the
+# generated-catalog drift check and an ASan+UBSan run. Nothing is allowed to
+# pass by not running.
+name: instrumentation-ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-test:
+    name: Build + ctest (host-debug)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: tools/ci/deps-ubuntu.sh
+      - name: Build and test
+        run: make test
+      - name: Format check (.clang-format)
+        run: make check-format
+      - name: Operation catalog is current (T-P25)
+        run: python3 tools/catalog/gen_operation_catalog.py --check
+      - name: Contract golden is non-empty
+        run: test -s test/contract/protos.golden.sha256
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: tools/ci/deps-ubuntu.sh
+      - name: Build and test under ASan+UBSan
+        run: |
+          cmake --preset asan
+          cmake --build --preset asan -j"$(nproc)"
+          ctest --preset asan --output-on-failure

@@ -23,7 +23,7 @@ FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build pkg-config python3 \
         protobuf-compiler protobuf-compiler-grpc \
-        libprotobuf-dev libgrpc++-dev libyaml-cpp-dev libgtest-dev \
+        libprotobuf-dev libgrpc++-dev libyaml-cpp-dev libgtest-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . /src
@@ -34,7 +34,7 @@ RUN cmake -S . -B /build -G Ninja \
 # ---- runtime stage ----
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libprotobuf32 libgrpc++1.51 libyaml-cpp0.7 \
+        libprotobuf32 libgrpc++1.51 libyaml-cpp0.7 libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Every executable lands flat in output_dir/bin (EXECUTABLE_OUTPUT_PATH in
