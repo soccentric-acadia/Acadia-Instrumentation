@@ -18,7 +18,7 @@ if [ ! -f /pst/factory/identity/identity.yaml ]; then
   cat > /pst/factory/identity/identity.yaml <<YAML
 serial: SIM-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
 hw_revision: sim-rev-a
-board_variant: x86-64
+board_variant: rpi-5
 mfg_date: 1970-01-01
 hostname_base: acadia-sim
 YAML

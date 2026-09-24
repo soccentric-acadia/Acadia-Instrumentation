@@ -1639,7 +1639,7 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
     std::vector<std::string> socket_names;
     auto own = [&](const std::string& name) {
         std::string path = run_dir + "/" + name + ".sock";
-        builder.AddListeningPort("unix:" + path, grpc::InsecureServerCredentials());
+        builder.AddListeningPort(instr::transport::uds_target(path), grpc::InsecureServerCredentials());
         socket_names.push_back(name);
         return path;
     };

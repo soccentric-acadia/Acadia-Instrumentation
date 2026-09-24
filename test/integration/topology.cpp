@@ -122,7 +122,9 @@ struct Topology
         // Short path: a Unix socket address is limited to ~108 bytes.
         char tpl[] = "/tmp/instr-topo-XXXXXX";
         dir = ::mkdtemp(tpl);
-        run_dir = dir + "/run";
+        // Same shape as a daemon's default root ("/" + "/run/..."), so every
+        // topology test dials the double-slash form a device produces.
+        run_dir = "/" + dir + "/run";
         ::mkdir(run_dir.c_str(), 0755);
 
         opts.pst_root = "/pst";
@@ -467,4 +469,17 @@ TEST(Topology, ThreeSpokesRunTogetherAndAllRegister)
     EXPECT_TRUE(wait_for([&] { return t.mon->config_revision() > 0 && t.flt->config_revision() > 0 && t.tel->config_revision() > 0; }));
     EXPECT_NEAR(t.tel_core->config().interval, 0.5, 1e-9);
     EXPECT_NEAR(t.fault_core->config().poll_interval_s, 0.2, 1e-9);
+}
+
+// Daemons build socket paths as root + "/run/instrumentation/..." with root
+// defaulting to "/". The dial target must stay a path URI ("unix:/run/..."),
+// never "unix://run/..." (an authority gRPC refuses) — every spoke failed to
+// register with istate on a device while tests (tempdir --root) passed.
+TEST(Topology, UdsTargetFromDefaultRootIsAPathUri)
+{
+    EXPECT_EQ(transport::uds_target(std::string("/") + "/run/instrumentation/monitord.sock"), "unix:/run/instrumentation/monitord.sock");
+    EXPECT_EQ(transport::uds_target("///run/x.sock"), "unix:/run/x.sock");
+    EXPECT_EQ(transport::uds_target("/tmp/t/run/x.sock"), "unix:/tmp/t/run/x.sock");
+    // End to end, the Topology fixture builds its run dir the same way, so
+    // the spoke registration tests above dial exactly this form.
 }

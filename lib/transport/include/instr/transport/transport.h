@@ -664,10 +664,19 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
 // helpers live here.
 
 /// @brief UDS target helper: "unix:<path>".
+///
+/// Every daemon builds its socket paths as `root + "/run/instrumentation/..."`
+/// with `root` defaulting to "/", i.e. "//run/...". Prefixed naively that is
+/// "unix://run/...", which gRPC parses as an authority ("run") and refuses —
+/// no spoke could register with istate on a device (tests always pass a
+/// tempdir --root, which hid it). Leading slashes are collapsed to one.
 /// @param path Socket path.
 /// @return "unix:<path>".
 inline std::string uds_target(const std::string& path)
 {
+    std::size_t first = path.find_first_not_of('/');
+    if (first == std::string::npos) first = path.size();
+    if (first > 1) return "unix:/" + path.substr(first);
     return "unix:" + path;
 }
 

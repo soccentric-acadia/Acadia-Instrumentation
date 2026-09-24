@@ -168,7 +168,7 @@ int main(int argc, char** argv)
     // the bridge socket present, the session starts; otherwise istate runs
     // disconnected, honestly, and the northbound spool retains until one is
     // provisioned.
-    std::string hq_target = "unix:" + run_dir + "/hq.sock";
+    std::string hq_target = instr::transport::uds_target(run_dir + "/hq.sock");
     if (const char* env = ::getenv("INSTR_HQ_TARGET")) hq_target = env;
     const bool hq_transport_provisioned = ::getenv("INSTR_HQ_TARGET") != nullptr || ::access((run_dir + "/hq.sock").c_str(), F_OK) == 0;
     if (!hq_transport_provisioned) { log.warning(args.name, "HQ transport not provisioned (no INSTR_HQ_TARGET, no " + run_dir + "/hq.sock) — northbound session disabled; provision a bridge or tunnel target to enable it"); }
