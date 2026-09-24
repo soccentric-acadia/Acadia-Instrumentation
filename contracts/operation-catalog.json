@@ -1,0 +1,977 @@
+{
+  "schema_version": 1,
+  "source": "Acadia-Instrumentation daemons/*/src command tables (t.add)",
+  "spokes": {
+    "alarms": [
+      {
+        "name": "ack",
+        "description": "acknowledge an active alarm",
+        "args": [
+          {
+            "name": "id",
+            "required": true,
+            "description": "alarm id"
+          }
+        ]
+      },
+      {
+        "name": "catalog-merge",
+        "description": "merge new catalog entries (update regeneration)",
+        "args": [
+          {
+            "name": "yaml",
+            "required": true,
+            "description": "catalog entries YAML"
+          }
+        ]
+      },
+      {
+        "name": "clear",
+        "description": "clear an active alarm (owner or operator)",
+        "args": [
+          {
+            "name": "id",
+            "required": true,
+            "description": "alarm id"
+          },
+          {
+            "name": "owner",
+            "required": false,
+            "description": "owner for attribution"
+          }
+        ]
+      },
+      {
+        "name": "escalation-policy-get",
+        "description": "show the escalation policy",
+        "args": []
+      },
+      {
+        "name": "escalation-policy-set",
+        "description": "set escalation rules (runtime; config via istate)",
+        "args": [
+          {
+            "name": "json",
+            "required": true,
+            "description": "[{\"alarm_id\":0,\"promote_after_s\":3600,\"promote_to\":\"CRITICAL\"}]"
+          }
+        ]
+      },
+      {
+        "name": "escalation-sweep",
+        "description": "run one escalation sweep now",
+        "args": []
+      },
+      {
+        "name": "list",
+        "description": "list the active alarm table",
+        "args": []
+      },
+      {
+        "name": "raise",
+        "description": "declare an alarm (applications only)",
+        "args": [
+          {
+            "name": "id",
+            "required": true,
+            "description": "alarm id (0x1_04_1_0007 or decimal)"
+          },
+          {
+            "name": "owner",
+            "required": true,
+            "description": "declaring application"
+          },
+          {
+            "name": "text",
+            "required": false,
+            "description": "additional text"
+          },
+          {
+            "name": "correlated",
+            "required": false,
+            "description": "comma-separated correlated ids"
+          }
+        ]
+      }
+    ],
+    "backup": [
+      {
+        "name": "create",
+        "description": "snapshot the configured paths into an encrypted archive",
+        "args": [
+          {
+            "name": "excludes",
+            "required": false,
+            "description": "comma-separated path prefixes"
+          }
+        ]
+      },
+      {
+        "name": "list",
+        "description": "list local archives",
+        "args": []
+      },
+      {
+        "name": "preview",
+        "description": "restore preview: what will change before committing",
+        "args": [
+          {
+            "name": "name",
+            "required": true,
+            "description": "archive name"
+          }
+        ]
+      },
+      {
+        "name": "restore",
+        "description": "transactional restore: completes fully or leaves prior state",
+        "args": [
+          {
+            "name": "name",
+            "required": true,
+            "description": "archive name"
+          }
+        ]
+      },
+      {
+        "name": "schedule-get",
+        "description": "show the backup schedule",
+        "args": []
+      },
+      {
+        "name": "schedule-set",
+        "description": "set the schedule (runtime; config via istate)",
+        "args": [
+          {
+            "name": "enabled",
+            "required": true,
+            "description": "true|false"
+          },
+          {
+            "name": "interval_s",
+            "required": true,
+            "description": "seconds"
+          }
+        ]
+      },
+      {
+        "name": "verify",
+        "description": "verify an archive manifest and integrity",
+        "args": [
+          {
+            "name": "name",
+            "required": true,
+            "description": "archive name"
+          }
+        ]
+      }
+    ],
+    "faults": [
+      {
+        "name": "rules-list",
+        "description": "list loaded fault rules",
+        "args": []
+      },
+      {
+        "name": "rules-reload",
+        "description": "reload the rule set from text (rules are data)",
+        "args": [
+          {
+            "name": "yaml",
+            "required": true,
+            "description": "full fault-rules.yaml document"
+          }
+        ]
+      },
+      {
+        "name": "stats",
+        "description": "scan statistics (lines, faults, duplicates, suppressed)",
+        "args": []
+      },
+      {
+        "name": "test-line",
+        "description": "test a kernel line against the rule set",
+        "args": [
+          {
+            "name": "line",
+            "required": true,
+            "description": "kernel log line"
+          }
+        ]
+      }
+    ],
+    "hardware": [
+      {
+        "name": "can-recv",
+        "description": "read CAN frames buffered since the last call",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "can device name"
+          },
+          {
+            "name": "max",
+            "required": false,
+            "description": "max frames (default 16)"
+          }
+        ]
+      },
+      {
+        "name": "can-send",
+        "description": "transmit a CAN frame",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "can device name"
+          },
+          {
+            "name": "id",
+            "required": true,
+            "description": "frame id (0x123 or decimal)"
+          },
+          {
+            "name": "data",
+            "required": false,
+            "description": "payload as a hex byte string, e.g. deadbeef"
+          },
+          {
+            "name": "extended",
+            "required": false,
+            "description": "true for a 29-bit extended id"
+          }
+        ]
+      },
+      {
+        "name": "check",
+        "description": "run the quick health checks for one device",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "device name from devices.yaml"
+          }
+        ]
+      },
+      {
+        "name": "check-all",
+        "description": "run quick health checks for every device",
+        "args": []
+      },
+      {
+        "name": "display-cmd",
+        "description": "control the display",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "display name"
+          },
+          {
+            "name": "cmd",
+            "required": true,
+            "description": "blank|unblank"
+          },
+          {
+            "name": "arg",
+            "required": false,
+            "description": "argument"
+          }
+        ]
+      },
+      {
+        "name": "gpio-get",
+        "description": "read a GPIO line",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "gpio device name"
+          }
+        ]
+      },
+      {
+        "name": "gpio-set",
+        "description": "drive a GPIO line",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "gpio device name"
+          },
+          {
+            "name": "value",
+            "required": true,
+            "description": "true|false"
+          }
+        ]
+      },
+      {
+        "name": "led-blink",
+        "description": "blink a board LED",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "led name"
+          },
+          {
+            "name": "on_ms",
+            "required": false,
+            "description": "on ms"
+          },
+          {
+            "name": "off_ms",
+            "required": false,
+            "description": "off ms"
+          },
+          {
+            "name": "repeats",
+            "required": false,
+            "description": "repeat count"
+          }
+        ]
+      },
+      {
+        "name": "led-set",
+        "description": "set a board LED",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "led name"
+          },
+          {
+            "name": "on",
+            "required": true,
+            "description": "true|false"
+          }
+        ]
+      },
+      {
+        "name": "list-devices",
+        "description": "list board devices from the descriptor",
+        "args": []
+      },
+      {
+        "name": "periodic-interval",
+        "description": "set the periodic check interval",
+        "args": [
+          {
+            "name": "seconds",
+            "required": true,
+            "description": "interval in seconds"
+          }
+        ]
+      },
+      {
+        "name": "usb-reset",
+        "description": "reset a USB device",
+        "args": [
+          {
+            "name": "device",
+            "required": true,
+            "description": "usb device name"
+          }
+        ]
+      }
+    ],
+    "istate": [
+      {
+        "name": "audit",
+        "description": "audit trail (who changed what, when, from where)",
+        "args": []
+      },
+      {
+        "name": "budgets",
+        "description": "per-consumer storage budget status",
+        "args": []
+      },
+      {
+        "name": "config-get",
+        "description": "effective config for a daemon (drift report)",
+        "args": [
+          {
+            "name": "daemon",
+            "required": true,
+            "description": "daemon name"
+          }
+        ]
+      },
+      {
+        "name": "config-set",
+        "description": "set config values (origin rules apply; runtime + persistent)",
+        "args": [
+          {
+            "name": "daemon",
+            "required": true,
+            "description": "daemon name"
+          },
+          {
+            "name": "yaml",
+            "required": true,
+            "description": "config YAML"
+          },
+          {
+            "name": "origin",
+            "required": false,
+            "description": "local|hq|app"
+          },
+          {
+            "name": "force",
+            "required": false,
+            "description": "overwrite local keys"
+          }
+        ]
+      },
+      {
+        "name": "drain",
+        "description": "drain the northbound spool toward HQ now",
+        "args": []
+      },
+      {
+        "name": "factory-reset",
+        "description": "factory reset (manufacturing only, explicitly gated)",
+        "args": [
+          {
+            "name": "confirm",
+            "required": true,
+            "description": "must be 'FACTORY-RESET'"
+          }
+        ]
+      },
+      {
+        "name": "health",
+        "description": "aggregate daemon health and presence",
+        "args": []
+      },
+      {
+        "name": "relay",
+        "description": "pass a command to a spoke (full coverage passthrough)",
+        "args": [
+          {
+            "name": "daemon",
+            "required": true,
+            "description": "target spoke"
+          },
+          {
+            "name": "op",
+            "required": true,
+            "description": "op name"
+          },
+          {
+            "name": "args",
+            "required": false,
+            "description": "JSON args"
+          }
+        ]
+      },
+      {
+        "name": "reset",
+        "description": "system reset (wipes system/ + state/, reseeds defaults)",
+        "args": [
+          {
+            "name": "confirm",
+            "required": false,
+            "description": "must be 'SYSTEM-RESET'"
+          }
+        ]
+      },
+      {
+        "name": "spokes",
+        "description": "list spokes with state and liveness",
+        "args": []
+      },
+      {
+        "name": "spool-stats",
+        "description": "northbound spool statistics",
+        "args": []
+      },
+      {
+        "name": "status",
+        "description": "hub status: provisioning, spokes, spool, HQ session",
+        "args": []
+      },
+      {
+        "name": "system-info",
+        "description": "device identity and system info",
+        "args": []
+      },
+      {
+        "name": "time-policy",
+        "description": "current time policy and lock state",
+        "args": []
+      },
+      {
+        "name": "timeline",
+        "description": "ordered event timeline",
+        "args": [
+          {
+            "name": "since_seq",
+            "required": false,
+            "description": "sequence"
+          }
+        ]
+      }
+    ],
+    "logmanager": [
+      {
+        "name": "bundle-create",
+        "description": "create a support bundle for a time window",
+        "args": [
+          {
+            "name": "sources",
+            "required": false,
+            "description": "comma-separated sources (all)"
+          },
+          {
+            "name": "timeout_s",
+            "required": false,
+            "description": "ignored"
+          }
+        ]
+      },
+      {
+        "name": "bundle-fetch",
+        "description": "locate a bundle payload for bulk transfer by handle",
+        "args": [
+          {
+            "name": "handle",
+            "required": true,
+            "description": "bundle handle"
+          }
+        ]
+      },
+      {
+        "name": "bundle-list",
+        "description": "list bundle handles",
+        "args": []
+      },
+      {
+        "name": "bundle-meta",
+        "description": "bundle metadata by handle",
+        "args": [
+          {
+            "name": "handle",
+            "required": true,
+            "description": "bundle handle"
+          }
+        ]
+      },
+      {
+        "name": "crash-report",
+        "description": "capture crash forensics for an abnormal exit",
+        "args": [
+          {
+            "name": "daemon",
+            "required": true,
+            "description": "daemon name"
+          },
+          {
+            "name": "coredump",
+            "required": false,
+            "description": "coredump path (resolved from the platform when omitted)"
+          },
+          {
+            "name": "last_lines",
+            "required": false,
+            "description": "JSON array of last log lines"
+          },
+          {
+            "name": "tail_lines",
+            "required": false,
+            "description": "how many stored lines to fold in (default 200)"
+          }
+        ]
+      },
+      {
+        "name": "level-set",
+        "description": "set the runtime level for a source",
+        "args": [
+          {
+            "name": "source",
+            "required": true,
+            "description": "source name"
+          },
+          {
+            "name": "level",
+            "required": true,
+            "description": "TRACE|DEBUG|INFO|WARNING|ERROR|CRITICAL"
+          }
+        ]
+      },
+      {
+        "name": "prune",
+        "description": "enforce retention and budget now",
+        "args": []
+      },
+      {
+        "name": "sources",
+        "description": "list configured log sources and their runtime levels",
+        "args": []
+      },
+      {
+        "name": "stats",
+        "description": "storage usage and retention stats",
+        "args": []
+      },
+      {
+        "name": "tail",
+        "description": "bounded on-demand live tail (stream)",
+        "args": [
+          {
+            "name": "sources",
+            "required": false,
+            "description": "comma-separated source names"
+          },
+          {
+            "name": "min_level",
+            "required": false,
+            "description": "minimum level"
+          },
+          {
+            "name": "since_mono_ns",
+            "required": false,
+            "description": "start timestamp"
+          },
+          {
+            "name": "max_rate_per_s",
+            "required": false,
+            "description": "rate limit"
+          },
+          {
+            "name": "timeout_s",
+            "required": false,
+            "description": "auto-stop"
+          }
+        ]
+      }
+    ],
+    "monitord": [
+      {
+        "name": "sample-once",
+        "description": "take one sampling pass and print the samples",
+        "args": []
+      },
+      {
+        "name": "set-interval",
+        "description": "set the sampling interval for a resource class",
+        "args": [
+          {
+            "name": "class",
+            "required": true,
+            "description": "resource class: cpu|memory|storage|thermal|load|system"
+          },
+          {
+            "name": "seconds",
+            "required": true,
+            "description": "sampling interval in seconds"
+          }
+        ]
+      },
+      {
+        "name": "status",
+        "description": "show sampler status and intervals",
+        "args": []
+      },
+      {
+        "name": "wear",
+        "description": "storage wear projections for all devices",
+        "args": []
+      }
+    ],
+    "networkd": [
+      {
+        "name": "apply-plan",
+        "description": "apply the current plan through the platform",
+        "args": []
+      },
+      {
+        "name": "failover-rank",
+        "description": "rank interfaces by priority and reachability",
+        "args": []
+      },
+      {
+        "name": "firewall-add",
+        "description": "add a runtime firewall rule (persistent config via istate)",
+        "args": [
+          {
+            "name": "action",
+            "required": true,
+            "description": "allow|deny"
+          },
+          {
+            "name": "proto",
+            "required": true,
+            "description": "tcp|udp|icmp|any"
+          },
+          {
+            "name": "src",
+            "required": false,
+            "description": "source cidr (any)"
+          },
+          {
+            "name": "dst_port",
+            "required": false,
+            "description": "destination port (0=any)"
+          },
+          {
+            "name": "comment",
+            "required": false,
+            "description": "rule comment"
+          }
+        ]
+      },
+      {
+        "name": "firewall-get",
+        "description": "list firewall rules",
+        "args": []
+      },
+      {
+        "name": "ifaces",
+        "description": "list configured interfaces",
+        "args": [
+          {
+            "name": "verbose",
+            "required": false,
+            "description": "include mode details (true/false)"
+          }
+        ]
+      },
+      {
+        "name": "set-time-policy",
+        "description": "apply a time-source policy delivered by istate (R8: istate owns the policy, networkd executes it)",
+        "args": [
+          {
+            "name": "source_priority",
+            "required": false,
+            "description": "source preference order, e.g. [gnss,ptp,ntp]"
+          },
+          {
+            "name": "ntp_servers",
+            "required": false,
+            "description": "NTP pool servers"
+          },
+          {
+            "name": "ptp_domain",
+            "required": false,
+            "description": "PTP domain number"
+          },
+          {
+            "name": "gnss_constellations",
+            "required": false,
+            "description": "constellations to track"
+          }
+        ]
+      },
+      {
+        "name": "ssh-close",
+        "description": "close all inbound SSH windows",
+        "args": []
+      },
+      {
+        "name": "ssh-list",
+        "description": "list SSH windows",
+        "args": []
+      },
+      {
+        "name": "ssh-open",
+        "description": "open a time-boxed, attributed inbound SSH window (alarm-visible)",
+        "args": [
+          {
+            "name": "operator",
+            "required": true,
+            "description": "named operator for attribution"
+          },
+          {
+            "name": "ttl_s",
+            "required": true,
+            "description": "window TTL 1s..24h"
+          }
+        ]
+      },
+      {
+        "name": "status",
+        "description": "full network status (plan, tunnel, ssh windows)",
+        "args": []
+      },
+      {
+        "name": "time-policy-render",
+        "description": "render time daemon configs from the current policy",
+        "args": []
+      },
+      {
+        "name": "tunnel-status",
+        "description": "WireGuard tunnel state",
+        "args": []
+      }
+    ],
+    "ota": [
+      {
+        "name": "apply",
+        "description": "apply the staged update (set boot slot)",
+        "args": []
+      },
+      {
+        "name": "canary",
+        "description": "canary report for staged rollouts",
+        "args": [
+          {
+            "name": "health_score",
+            "required": false,
+            "description": "0..100"
+          },
+          {
+            "name": "fault_rate_24h",
+            "required": false,
+            "description": "faults/day"
+          }
+        ]
+      },
+      {
+        "name": "confirm",
+        "description": "explicit post-boot confirmation (unconfirmed rolls back)",
+        "args": []
+      },
+      {
+        "name": "history",
+        "description": "update history",
+        "args": []
+      },
+      {
+        "name": "receive-chunk",
+        "description": "artifact intake (resume-aware; lands on disk before applying)",
+        "args": [
+          {
+            "name": "data_b64",
+            "required": true,
+            "description": "base64 chunk"
+          },
+          {
+            "name": "offset",
+            "required": true,
+            "description": "byte offset"
+          }
+        ]
+      },
+      {
+        "name": "rollback",
+        "description": "manual rollback to the previous slot",
+        "args": [
+          {
+            "name": "reason",
+            "required": false,
+            "description": "why"
+          }
+        ]
+      },
+      {
+        "name": "stage",
+        "description": "verify + stage the artifact to the inactive slot",
+        "args": [
+          {
+            "name": "manifest",
+            "required": true,
+            "description": "artifact manifest JSON"
+          }
+        ]
+      },
+      {
+        "name": "status",
+        "description": "current slot, version, update state and history",
+        "args": []
+      },
+      {
+        "name": "tick",
+        "description": "run the confirmation watchdog tick",
+        "args": []
+      },
+      {
+        "name": "window-check",
+        "description": "is now within a maintenance window?",
+        "args": []
+      },
+      {
+        "name": "window-set",
+        "description": "set maintenance windows (runtime; config via istate)",
+        "args": [
+          {
+            "name": "json",
+            "required": true,
+            "description": "[{\"day\":\"*\",\"start\":\"02:00\",\"end\":\"04:00\"}]"
+          }
+        ]
+      }
+    ],
+    "telemetry": [
+      {
+        "name": "buffer-stats",
+        "description": "retention buffer statistics",
+        "args": []
+      },
+      {
+        "name": "drain",
+        "description": "drain buffered unsent batches (returns count)",
+        "args": []
+      },
+      {
+        "name": "flush",
+        "description": "close the current window and emit a batch",
+        "args": []
+      },
+      {
+        "name": "health-score",
+        "description": "per-device health score with contributing factors",
+        "args": []
+      },
+      {
+        "name": "ingest",
+        "description": "ingest one sample (relayed from monitord via istate)",
+        "args": [
+          {
+            "name": "metric",
+            "required": true,
+            "description": "metric name"
+          },
+          {
+            "name": "value",
+            "required": true,
+            "description": "numeric value"
+          }
+        ]
+      },
+      {
+        "name": "list-metrics",
+        "description": "list registered metrics",
+        "args": []
+      },
+      {
+        "name": "register-metric",
+        "description": "application metric registration",
+        "args": [
+          {
+            "name": "name",
+            "required": true,
+            "description": "metric name"
+          },
+          {
+            "name": "unit",
+            "required": true,
+            "description": "unit"
+          },
+          {
+            "name": "type",
+            "required": true,
+            "description": "gauge|counter"
+          },
+          {
+            "name": "app",
+            "required": true,
+            "description": "registering application"
+          }
+        ]
+      }
+    ]
+  }
+}

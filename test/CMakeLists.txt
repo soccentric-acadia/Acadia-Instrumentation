@@ -177,3 +177,13 @@ add_custom_target(protos_golden DEPENDS "${PROTO_DESC}")
 target_compile_definitions(contract_protos PRIVATE PROTO_DESC_FILE="${PROTO_DESC}"
                           GOLDEN_FILE="${CMAKE_SOURCE_DIR}/test/contract/protos.golden.sha256"
                           CONTRACT_ROOT="${CMAKE_SOURCE_DIR}/contracts")
+# ---- T-P25 (N04): the operation catalog must match the command tables ----
+# contracts/operation-catalog.json is generated from every daemon's t.add()
+# registrations; Configuration and HQ vendor it. A new/renamed verb without
+# a regenerated catalog fails here.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
+  add_test(NAME operation_catalog_up_to_date
+           COMMAND ${Python3_EXECUTABLE}
+                   "${CMAKE_SOURCE_DIR}/tools/catalog/gen_operation_catalog.py" --check)
+endif()

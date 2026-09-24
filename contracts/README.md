@@ -18,3 +18,12 @@ Consumers should:
 These artifacts are intentionally published in Instrumentation only. Updating
 HQ or Configuration copies, generated clients, or deployment packaging
 requires a coordinated cross-repository change.
+
+## Operation catalog (T-P25)
+
+`operation-catalog.json` lists every spoke control verb (name, description,
+arguments) and is **generated** from the daemons' command-table
+registrations by `tools/catalog/gen_operation_catalog.py`. The ctest
+`operation_catalog_up_to_date` fails when a verb is added or renamed without
+regenerating it. Acadia-Configuration and Acadia-HQ vendor this file instead
+of keeping hand copies; after regenerating here, re-vendor it there.

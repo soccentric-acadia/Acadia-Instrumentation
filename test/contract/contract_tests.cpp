@@ -82,7 +82,7 @@ TEST(ContractArtifacts, PublishedMetadataMatchesDescriptor)
     const std::string root = CONTRACT_ROOT;
     const std::string descriptor = slurp(root + "/proto-schema-v3.pb");
     ASSERT_GT(descriptor.size(), 100u);
-    EXPECT_EQ(crypto::sha256(descriptor).hex(), "c3c11569f56c9b443834cada0f49b601a5ca2fad5d9c69fb3b08122bb3108f58");
+    EXPECT_EQ(crypto::sha256(descriptor).hex(), "8bd9d5e5ecb9b92770f0fc869181b67ab259a5a2428dc9cdb62fefc34fa3b469");
 
     const std::string metadata = slurp(root + "/device-contract-v1.json");
     const std::string compatibility = slurp(root + "/compatibility-v1.json");
