@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-24 — Integration-production pass (T-P25, T-P31, T-P32, T-P35)
+
+- **Fix:** spokes could never register with istate on a device. With the default root "/", the dial target became `unix://run/...`, which gRPC rejects. `uds_target` now normalises it, and the topology tests use the production path shape (`3d03ba6`).
+- T-P25: the operation catalog is generated from the tables and checked by ctest.
+- T-P31: OpenSSL crypto, AEAD v2 with a legacy read path, versioned salts and argv-based exec.
+- T-P32: Acadia rebrand; non-Acadia descriptors pruned; YAML factory identity.
+- T-P00c: `disabled_spokes` (OTA is off on Acadia) and a polkit rule.
+- INS-020: GitHub CI covering build, 366 ctests, format, catalog drift and ASan+UBSan. The sim-device image builds again.
+- Validation: 366/366 ctest; clean ubuntu:24.04 CI reproduction; sim device runs with all 8 enabled spokes ready.
+
 ## 2026-09-21 — Cross-repo API surface audit: istate contract extensions (task 009)
 
 ### Added
