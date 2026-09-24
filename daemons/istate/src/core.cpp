@@ -29,6 +29,7 @@
 
 #include "instr/alarms_gen.h"
 
+#include <algorithm>
 #include <future>
 
 #include "instr/common/version_gen.h"
@@ -204,7 +205,18 @@ bool IstateCore::boot(const DefaultFileSet& defaults)
         m.command.set_issued_by("istate");
         return relay_to_spoke_(daemon, m);
     });
-    orchestrator_.declare_spokes(startup_order());
+    {
+        // T-P00c: spokes this product does not run are neither started nor
+        // expected (a stopped `ota` must not read as a failed spoke).
+        const auto disabled = options().disabled_spokes;
+        std::vector<std::string> spokes;
+        for (const auto& n : startup_order())
+            if (std::find(disabled.begin(), disabled.end(), n) == disabled.end())
+                spokes.push_back(n);
+            else
+                log_.info("istate", "spoke disabled by configuration: " + n);
+        orchestrator_.declare_spokes(spokes);
+    }
     orchestrator_.start_all();
 
     // 6. Open the northbound spool; HQ session is last and never a precondition.
@@ -577,6 +589,8 @@ void IstateCore::apply_own_config()
         num("heartbeat_failure_timeout_s", opts_.liveness_hang_timeout_s);
         num("watchdog_timeout_s", opts_.watchdog_timeout_s);
         if ((*doc).has("hq_endpoint")) opts_.hq_endpoint = (*doc).get_string("hq_endpoint", opts_.hq_endpoint);
+        // Lists flatten on load; an absent key yields an empty list.
+        opts_.disabled_spokes = (*doc).get_list("disabled_spokes");
     }
     (void)plat_.watchdog_set_timeout_s(int(options().watchdog_timeout_s));
     // Time policy (R8: istate owns it; networkd executes it). Persisted as the

@@ -1,0 +1,21 @@
+// Instrumentation spoke control (T-P31/INS-009).
+//
+// istate orchestrates its spokes (start, liveness restarts, stop) as the
+// unprivileged instr-istate user via `systemctl`. Without a rule every unit
+// mutation is denied. This grants exactly that: start/stop/restart of the
+// instr-* spoke units — nothing else, no other user.
+polkit.addRule(function (action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (subject.user !== "instr-istate") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var unit = action.lookup("unit");
+    var verb = action.lookup("verb");
+    if (unit && /^instr-[a-z]+\.service$/.test(unit) &&
+        (verb === "start" || verb === "stop" || verb === "restart")) {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});

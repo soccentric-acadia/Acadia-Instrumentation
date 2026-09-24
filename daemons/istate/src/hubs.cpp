@@ -39,6 +39,7 @@
 #include "instr/telemetry/daemon.h"
 #include "instr/istate/table.h"
 
+#include <algorithm>
 #include <grp.h>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -883,8 +884,11 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         // Staleness window = the heartbeat failure threshold (§3.1), not a
         // compile-time constant, so a reconfigured cadence stays coherent.
         const uint64_t window_ns = uint64_t(core_.options().liveness_hang_timeout_s * 1e9);
+        const auto disabled = core_.options().disabled_spokes;
         for (const char* name : {"networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup", "configuration", "hq"})
         {
+            // T-P00c: a spoke the product does not run is not a peer.
+            if (std::find(disabled.begin(), disabled.end(), std::string(name)) != disabled.end()) continue;
             auto* p = reply->add_peers();
             p->set_peer(name);
             p->set_kind(std::string(name) == "configuration" ? common::PEER_CONFIGURATION : std::string(name) == "hq" ? common::PEER_HQ : common::PEER_SPOKE);

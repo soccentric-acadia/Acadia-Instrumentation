@@ -104,6 +104,14 @@
     "heartbeat_failure_timeout_s": {
       "type": "number",
       "minimum": 1
+    },
+    "disabled_spokes": {
+      "description": "Spokes this product does not run (T-P00c); istate neither starts nor expects them.",
+      "type": "array",
+      "items": {
+        "enum": ["networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"]
+      },
+      "uniqueItems": true
     }
   },
   "required": [

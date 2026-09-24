@@ -217,3 +217,15 @@ TEST(SystemFiles, UdevGrantsHardwareTheDevicesItDrives)
     EXPECT_NE(u.find("watchdog"), std::string::npos);
     EXPECT_NE(u.find("instr-istate"), std::string::npos) << "the watchdog belongs to istate (§7.1)";
 }
+
+/// @brief INS-009: istate may manage exactly its instr-* spoke units via
+/// polkit — the rule ships and is scoped to the instr-istate user.
+TEST(SystemFiles, IstateSpokeControlPolkitRuleIsScoped)
+{
+    const std::string rule = slurp(std::string(REPO_ROOT) + "/system/polkit/60-instrumentation.rules");
+    ASSERT_FALSE(rule.empty());
+    EXPECT_NE(rule.find("org.freedesktop.systemd1.manage-units"), std::string::npos);
+    EXPECT_NE(rule.find("subject.user !== \"instr-istate\""), std::string::npos);
+    EXPECT_NE(rule.find("/^instr-[a-z]+\\.service$/"), std::string::npos);
+    EXPECT_EQ(rule.find("\"enable\""), std::string::npos) << "only start/stop/restart";
+}

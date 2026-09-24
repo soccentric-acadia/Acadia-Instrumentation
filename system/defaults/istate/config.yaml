@@ -9,3 +9,7 @@ heartbeat_interval_s: 5
 heartbeat_warning_timeout_s: 15
 heartbeat_failure_timeout_s: 30
 watchdog_timeout_s: 60
+# T-P00c (single OTA owner): on Acadia, updates are installed by SWUpdate via
+# Acadia-Configuration (local + HQ); the Instrumentation OTA engine does not
+# run. Remove `ota` here only if a product adopts it as its OTA owner.
+disabled_spokes: [ota]

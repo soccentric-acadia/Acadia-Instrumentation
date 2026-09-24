@@ -62,6 +62,10 @@ struct IstateOptions
     double heartbeat_warning_timeout_s = 15;   ///< Peer silence before the warning (degraded) tier.
     double watchdog_timeout_s = 60;            ///< Hardware watchdog timeout istate programs.
     std::string hq_endpoint;                   ///< HQ tunnel endpoint used when the device must supply one.
+    /// Spokes this product does not run (T-P00c: Acadia's OTA owner is
+    /// SWUpdate via Configuration, so `ota` is disabled there). istate neither
+    /// starts nor expects them, and peer status omits them.
+    std::vector<std::string> disabled_spokes;
     uint64_t spool_max_bytes = 64ull * 1024 * 1024;   ///< Northbound spool budget.
     double budget_spool = 64ull * 1024 * 1024;    ///< Spool consumer budget.
     double budget_logs = 128ull * 1024 * 1024;    ///< Logs consumer budget.

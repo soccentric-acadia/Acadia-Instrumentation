@@ -33,6 +33,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include "instr/common/filesystem.h"
 #include "instr/istate/core.h"
 #include "instr/istate/pst.h"
@@ -196,3 +198,18 @@ TEST(OwnConfig, LateRegistrantReceivesCurrentPolicy)
     EXPECT_TRUE(f.saw_relay("networkd", "set-time-policy", "ntp.example.org"));
 }
 } // namespace
+/// @brief T-P00c: a spoke listed in disabled_spokes is neither started nor
+/// expected; every other spoke still starts.
+TEST(OwnConfig, DisabledSpokesAreNotStarted)
+{
+    OwnCfgFixture f;
+    DefaultFileSet defaults{{"istate", {{"config.yaml", "enabled: true\ndisabled_spokes: [ota]\n"}}}};
+    auto core = f.boot(defaults);
+    const auto& started = f.plat.started_units();
+    EXPECT_EQ(std::count(started.begin(), started.end(), "instr-ota.service"), 0);
+    EXPECT_EQ(std::count(started.begin(), started.end(), "instr-backup.service"), 1);
+    EXPECT_EQ(std::count(started.begin(), started.end(), "instr-networkd.service"), 1);
+    const auto disabled = core->options().disabled_spokes;
+    ASSERT_EQ(disabled.size(), 1u);
+    EXPECT_EQ(disabled[0], "ota");
+}
