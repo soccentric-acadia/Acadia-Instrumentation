@@ -711,3 +711,82 @@ TEST(CommandTable, DispatchHelpCompletion)
     ASSERT_TRUE(env.ok());
     EXPECT_EQ((*env).find("ok")->as_bool(), true);
 }
+// ---- T-P31 (INS-001..004): OpenSSL-backed AEAD ----------------------------
+
+TEST(CryptoAead, SealIsVersionedChaCha20Poly1305)
+{
+    const std::string key(32, 'k');
+    auto sealed = instr::crypto::aead_seal_checked(key, "hello");
+    ASSERT_TRUE(sealed.ok());
+    // 0x02 | nonce(12) | ct(5) | tag(16)
+    EXPECT_EQ(uint8_t((*sealed)[0]), 0x02);
+    EXPECT_EQ(sealed->size(), 1u + 12u + 5u + 16u);
+    auto opened = instr::crypto::aead_open(key, *sealed);
+    ASSERT_TRUE(opened.ok());
+    EXPECT_EQ(*opened, "hello");
+    // Two seals of the same plaintext never share a nonce/ciphertext.
+    auto again = instr::crypto::aead_seal_checked(key, "hello");
+    EXPECT_NE(*sealed, *again);
+}
+
+TEST(CryptoAead, TamperingAnyByteIsRejected)
+{
+    const std::string key(32, 'k');
+    std::string sealed = *instr::crypto::aead_seal_checked(key, "payload");
+    for (size_t i = 0; i < sealed.size(); ++i)
+    {
+        std::string t = sealed;
+        t[i] = char(t[i] ^ 0x01);
+        EXPECT_FALSE(instr::crypto::aead_open(key, t).ok()) << "byte " << i;
+    }
+    EXPECT_FALSE(instr::crypto::aead_open(std::string(32, 'x'), sealed).ok());
+}
+
+TEST(CryptoAead, LegacyV1BlobsStillOpen)
+{
+    // Pre-T-P31 format: nonce | ChaCha20(ctr=1) | HMAC-SHA256(key, nonce|ct).
+    const std::string key(32, 'L');
+    const std::string pt = "archived before the migration";
+    std::string nonce(12, '\x07');
+    std::string ct(pt.size(), '\0');
+    instr::crypto::chacha20(reinterpret_cast<const uint8_t*>(key.data()), reinterpret_cast<const uint8_t*>(nonce.data()), 1, reinterpret_cast<const uint8_t*>(pt.data()), reinterpret_cast<uint8_t*>(&ct[0]), pt.size());
+    auto tag = instr::crypto::hmac_sha256(key, nonce + ct);
+    std::string blob = nonce + ct + std::string(reinterpret_cast<const char*>(tag.b.data()), 32);
+    auto opened = instr::crypto::aead_open(key, blob);
+    ASSERT_TRUE(opened.ok());
+    EXPECT_EQ(*opened, pt);
+    blob.back() = char(blob.back() ^ 1);
+    EXPECT_FALSE(instr::crypto::aead_open(key, blob).ok());
+}
+
+TEST(CryptoAead, WrongKeyLengthIsRefused)
+{
+    EXPECT_FALSE(instr::crypto::aead_open("short", std::string(64, '\0')).ok());
+}
+
+// ---- T-P31 (INS-007/008): argv-only process execution ---------------------
+#include "instr/common/process.h"
+
+TEST(Process, RunsByArgvWithoutAShell)
+{
+    // A shell would expand `$(...)` / `;` — argv exec passes them literally.
+    auto r = instr::proc::run_argv({"printf", "%s", "a; echo pwned $(id)"}, true);
+    ASSERT_TRUE(r.spawned);
+    EXPECT_EQ(r.exit_code, 0);
+    EXPECT_EQ(r.output, "a; echo pwned $(id)");
+    auto missing = instr::proc::run_argv({"/nonexistent/tool"});
+    EXPECT_FALSE(missing.spawned);
+    auto fail = instr::proc::run_argv({"false"});
+    EXPECT_TRUE(fail.spawned);
+    EXPECT_EQ(fail.exit_code, 1);
+}
+
+TEST(Process, UnitNamesAreValidated)
+{
+    EXPECT_TRUE(instr::proc::valid_unit_name("instr-istate.service"));
+    EXPECT_TRUE(instr::proc::valid_unit_name("serial-getty@ttyAMA10.service"));
+    EXPECT_FALSE(instr::proc::valid_unit_name("sshd.service; rm -rf /"));
+    EXPECT_FALSE(instr::proc::valid_unit_name("$(reboot).service"));
+    EXPECT_FALSE(instr::proc::valid_unit_name("--force"));
+    EXPECT_FALSE(instr::proc::valid_unit_name("sshd"));
+}

@@ -170,12 +170,8 @@ int main(int argc, char** argv)
     // provisioned.
     std::string hq_target = "unix:" + run_dir + "/hq.sock";
     if (const char* env = ::getenv("INSTR_HQ_TARGET")) hq_target = env;
-    const bool hq_transport_provisioned =
-        ::getenv("INSTR_HQ_TARGET") != nullptr || ::access((run_dir + "/hq.sock").c_str(), F_OK) == 0;
-    if (!hq_transport_provisioned)
-    {
-        log.warning(args.name, "HQ transport not provisioned (no INSTR_HQ_TARGET, no " + run_dir + "/hq.sock) — northbound session disabled; provision a bridge or tunnel target to enable it");
-    }
+    const bool hq_transport_provisioned = ::getenv("INSTR_HQ_TARGET") != nullptr || ::access((run_dir + "/hq.sock").c_str(), F_OK) == 0;
+    if (!hq_transport_provisioned) { log.warning(args.name, "HQ transport not provisioned (no INSTR_HQ_TARGET, no " + run_dir + "/hq.sock) — northbound session disabled; provision a bridge or tunnel target to enable it"); }
     instr::istate::HqClient hq(core, log, hq_target);
     if (hq_transport_provisioned) hq.start();
 

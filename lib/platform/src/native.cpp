@@ -25,6 +25,7 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
+#include "instr/common/process.h"
 #include "instr/platform/native.h"
 
 #include "instr/common/json.h"
@@ -535,13 +536,11 @@ std::vector<IfaceInfo> NativePlatform::interfaces()
 /// @return The variable value, or an error.
 Result<std::string> NativePlatform::fw_getenv(const std::string& var)
 {
-    std::string cmd = "fw_printenv -n " + var + " 2>/dev/null";
-    FILE* p = ::popen(cmd.c_str(), "r");
-    if (!p) return Result<std::string>::fail(Errc::Unavailable, "fw_printenv unavailable", var);
-    char buf[256];
-    std::string out;
-    while (std::fgets(buf, sizeof(buf), p)) out += buf;
-    int rc = ::pclose(p);
+    // T-P31 (INS-007): argv exec, never a shell string.
+    auto run = proc::run_argv({"fw_printenv", "-n", var}, true);
+    if (!run.spawned) return Result<std::string>::fail(Errc::Unavailable, "fw_printenv unavailable", var);
+    std::string out = run.output;
+    int rc = run.exit_code;
     while (!out.empty() && (out.back() == '\n' || out.back() == ' ' || out.back() == '\r')) out.pop_back();
     if (rc != 0 || out.empty()) return Result<std::string>::fail(Errc::NotFound, "unset in bootloader env", var);
     return Result<std::string>::good(out);
@@ -553,9 +552,8 @@ Result<std::string> NativePlatform::fw_getenv(const std::string& var)
 Error NativePlatform::fw_setenv(const std::string& var, const std::string& value)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "bootloader env write disabled on host (INSTR_APPLY_NETWORK!=1)", var);
-    std::string cmd = "fw_setenv " + var + " " + value + " 2>/dev/null";
-    int rc = std::system(cmd.c_str());
-    if (rc != 0) return Error::make(Errc::Io, "fw_setenv failed", var);
+    auto run = proc::run_argv({"fw_setenv", var, value});
+    if (!run.spawned || run.exit_code != 0) return Error::make(Errc::Io, "fw_setenv failed", var);
     return Error::none();
 }
 
@@ -949,29 +947,39 @@ Result<std::string> NativePlatform::display_probe()
     return Result<std::string>::good("ok " + s);
 }
 
+namespace
+{
+/// T-P31 (INS-007): unit names arrive from HQ/ctrl — validate, then exec by
+/// argv (the old `std::system("systemctl start " + unit)` was injectable).
+Error systemctl_verb(const char* verb, const std::string& unit)
+{
+    if (!proc::valid_unit_name(unit)) return Error::make(Errc::InvalidArgument, "invalid unit name", unit);
+    auto run = proc::run_argv({"systemctl", verb, unit});
+    if (!run.spawned || run.exit_code != 0) return Error::make(Errc::Unavailable, std::string("systemctl ") + verb + " failed", unit);
+    return Error::none();
+}
+} // namespace
+
 /// @brief Start a systemd unit (istate requests, REQ §7.1).
 /// @param unit systemd unit to start.
 Error NativePlatform::unit_start(const std::string& unit)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "systemd mutation disabled on host (INSTR_APPLY_NETWORK!=1)", unit);
-    int rc = std::system(("systemctl start " + unit + " 2>/dev/null").c_str());
-    return rc == 0 ? Error::none() : Error::make(Errc::Unavailable, "systemctl start failed", unit);
+    return systemctl_verb("start", unit);
 }
 /// @brief Stop a systemd unit.
 /// @param unit systemd unit to stop.
 Error NativePlatform::unit_stop(const std::string& unit)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "systemd mutation disabled on host", unit);
-    int rc = std::system(("systemctl stop " + unit + " 2>/dev/null").c_str());
-    return rc == 0 ? Error::none() : Error::make(Errc::Unavailable, "systemctl stop failed", unit);
+    return systemctl_verb("stop", unit);
 }
 /// @brief Restart a systemd unit.
 /// @param unit systemd unit to restart.
 Error NativePlatform::unit_restart(const std::string& unit)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "systemd mutation disabled on host", unit);
-    int rc = std::system(("systemctl restart " + unit + " 2>/dev/null").c_str());
-    return rc == 0 ? Error::none() : Error::make(Errc::Unavailable, "systemctl restart failed", unit);
+    return systemctl_verb("restart", unit);
 }
 /// @brief Query whether a unit is active.
 /// @param unit systemd unit to query.
@@ -980,8 +988,9 @@ Result<bool> NativePlatform::unit_active(const std::string& unit)
 {
     if (apply_enabled())
     {
-        int rc = std::system(("systemctl is-active --quiet " + unit + " 2>/dev/null").c_str());
-        return Result<bool>::good(rc == 0);
+        if (!proc::valid_unit_name(unit)) return Result<bool>::fail(Errc::InvalidArgument, "invalid unit name", unit);
+        auto run = proc::run_argv({"systemctl", "is-active", "--quiet", unit});
+        return Result<bool>::good(run.spawned && run.exit_code == 0);
     }
     // Without systemd: treat presence of a pid file as active.
     std::string unit_name = unit;
@@ -1075,18 +1084,18 @@ Result<std::vector<std::string>> NativePlatform::journal_lines(const std::string
     // Reading the journal is an observation, not a mutation: it must work on a
     // real device regardless of INSTR_APPLY_NETWORK, or LogManager collects
     // nothing (§7.7). journalctl simply yields nothing where it is absent.
-    std::string cmd = "journalctl -u " + unit + " -n " + std::to_string(max_lines) + " --no-pager -o short 2>/dev/null";
-    FILE* p = ::popen(cmd.c_str(), "r");
-    if (!p) return Result<std::vector<std::string>>::good({});
+    if (!proc::valid_unit_name(unit)) return Result<std::vector<std::string>>::fail(Errc::InvalidArgument, "invalid unit name", unit);
+    auto run = proc::run_argv({"journalctl", "-u", unit, "-n", std::to_string(max_lines), "--no-pager", "-o", "short"}, true);
     std::vector<std::string> out;
-    char buf[4096];
-    while (std::fgets(buf, sizeof(buf), p))
+    size_t start = 0;
+    const std::string& text = run.output;
+    while (start < text.size())
     {
-        std::string line(buf);
-        while (!line.empty() && line.back() == '\n') line.pop_back();
-        out.push_back(line);
+        size_t nl = text.find('\n', start);
+        if (nl == std::string::npos) nl = text.size();
+        out.push_back(text.substr(start, nl - start));
+        start = nl + 1;
     }
-    ::pclose(p);
     return Result<std::vector<std::string>>::good(std::move(out));
 }
 
@@ -1106,6 +1115,10 @@ Error NativePlatform::run_cmd(const std::string& cmd)
         return Error::none();
     }
     applied_commands_.push_back(cmd);
+    // Shell exception (T-P31 review): networkd renders complete command lines
+    // from validated plan fields. This path is inert unless
+    // INSTR_APPLY_NETWORK=1, and under B-01 Acadia-Configuration owns network
+    // apply — Instrumentation's plan stays dry-run on Acadia.
     int rc = std::system((cmd + " >/dev/null 2>&1").c_str());
     if (rc != 0) return Error::make(Errc::Io, "command failed: " + cmd, "network");
     return Error::none();
@@ -1626,13 +1639,8 @@ void NativePlatform::read_smart(StorageDevice* d)
     }
     if (!apply_enabled()) return; // smartctl is a subprocess: host-safe guard
 
-    std::string cmd = "smartctl -A -j " + d->device_path + " 2>/dev/null";
-    FILE* p = ::popen(cmd.c_str(), "r");
-    if (!p) return;
-    std::string out;
-    char buf[1024];
-    while (std::fgets(buf, sizeof(buf), p)) out += buf;
-    ::pclose(p);
+    auto run = proc::run_argv({"smartctl", "-A", "-j", d->device_path}, true);
+    const std::string& out = run.output;
     if (out.empty()) return;
     auto j = json_parse(out);
     if (!j.ok() || !(*j).is_object()) return;

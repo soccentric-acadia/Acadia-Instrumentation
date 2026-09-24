@@ -192,17 +192,19 @@ class BackupEngine
     }
 
   private:
-    /// @brief Archive-encryption key: HKDF over identity serial+secret.
+    /// @brief Archive-encryption key: HKDF over the device-class secret.
+    /// @param legacy_v1 The pre-T-P31 ("arches-backup-v1") derivation, kept
+    ///        only to open archives sealed before the migration.
     /// @return The identity-derived archive key.
-    std::string key_for_archive() const;
+    std::string key_for_archive(bool legacy_v1 = false) const;
     /// @brief Decrypt a locally sealed archive.
     /// @param blob Sealed archive bytes.
     /// @return The decrypted archive, or an error.
     Result<tar::FileEntry> decrypt_archive(const std::string& blob) const;
     /// @brief Seal an archive with the local identity-derived key.
     /// @param tar_bytes Archive bytes to seal.
-    /// @return The sealed archive bytes.
-    std::string encrypt_archive(const std::string& tar_bytes) const;
+    /// @return The sealed archive bytes, or an error (CSPRNG failure).
+    Result<std::string> encrypt_archive(const std::string& tar_bytes) const;
 
     IFileSystem& fs_;        ///< Storage backend.
     BackupOptions opts_;     ///< Identity, versions and keys.

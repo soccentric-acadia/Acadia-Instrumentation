@@ -146,9 +146,7 @@ TEST(DataFanout, SubscribePublishUnsubscribe)
 {
     DataFanout fan;
     std::vector<std::string> got;
-    int id = fan.subscribe([&](const std::string& cls, const std::string& payload, uint64_t) {
-        got.push_back(cls + ":" + payload);
-    });
+    int id = fan.subscribe([&](const std::string& cls, const std::string& payload, uint64_t) { got.push_back(cls + ":" + payload); });
     EXPECT_EQ(fan.subscriber_count(), 1u);
     fan.publish("telemetry", "{}", 42);
     ASSERT_EQ(got.size(), 1u);
@@ -167,9 +165,7 @@ TEST(DataFanout, PublishIsSynchronousAndUnboundedSafe)
 {
     DataFanout fan;
     std::vector<std::string> got;
-    int id = fan.subscribe([&](const std::string& cls, const std::string& payload, uint64_t) {
-        got.push_back(cls + ":" + payload);
-    });
+    int id = fan.subscribe([&](const std::string& cls, const std::string& payload, uint64_t) { got.push_back(cls + ":" + payload); });
     (void)id;
     for (int i = 0; i < 800; ++i) fan.publish("event", "payload-" + std::to_string(i), uint64_t(i));
     EXPECT_EQ(got.size(), 800u); // every record delivered synchronously
@@ -187,11 +183,7 @@ TEST(ControlAllowed, ActorAndSpellingGate)
     EXPECT_FALSE(control_allowed("app", "status"));
     EXPECT_FALSE(control_allowed("", "status"));
     // HQ denied ops, both spellings.
-    for (const char* op : {"reset", "factory-reset", "factory_reset", "restart", "stop", "start",
-                           "apply-artifact", "apply_artifact", "rollback", "reboot", "shutdown"})
-    {
-        EXPECT_FALSE(control_allowed("hq", op)) << op;
-    }
+    for (const char* op : {"reset", "factory-reset", "factory_reset", "restart", "stop", "start", "apply-artifact", "apply_artifact", "rollback", "reboot", "shutdown"}) { EXPECT_FALSE(control_allowed("hq", op)) << op; }
     // The same ops are allowed for the local console and the Configuration peer.
     EXPECT_TRUE(control_allowed("local", "factory_reset"));
     EXPECT_TRUE(control_allowed("configuration", "factory-reset"));

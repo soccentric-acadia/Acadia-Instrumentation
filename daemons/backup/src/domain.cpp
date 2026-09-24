@@ -129,7 +129,7 @@ static void collect(IFileSystem& fs, const std::string& root, const std::string&
 
 /// @brief Derive the local archive key: HKDF over identity serial+secret.
 /// @return The identity-derived archive key.
-std::string BackupEngine::key_for_archive() const
+std::string BackupEngine::key_for_archive(bool legacy_v1) const
 {
     // Local archives: key derived from the factory-provisioned identity secret
     // (HKDF-SHA256). The secret is device-class identity, NOT the per-board
@@ -137,15 +137,30 @@ std::string BackupEngine::key_for_archive() const
     // manifest serial then forces fresh enrollment); the WireGuard keys and
     // factory/ are excluded unconditionally, so identity itself is never
     // portable through a backup (REQ §7.10).
-    return crypto::hkdf_sha256(opts_.identity_secret, "arches-backup-v1", "local-archive-key", 32);
+    //
+    // Threat model (T-P31, INS-006 — accepted, documented): any unit holding
+    // the same class secret can open another unit's LOCAL archive. That is the
+    // price of replacement-board restore. The archives therefore hold only
+    // configuration (no device identity, no tunnel keys), live on the unit's
+    // own /pst, and leave the device only through seal_for_hq(), which
+    // re-encrypts to the HQ X25519 key (the escrow path). A fleet needing
+    // unit-bound archives derives with the serial in `info` and restores via
+    // HQ.
+    //
+    // T-P31 (INS-016): the salt is versioned and Acadia-branded; v1
+    // ("arches-backup-v1") is derived only to open pre-migration archives.
+    if (legacy_v1) return crypto::hkdf_sha256(opts_.identity_secret, "arches-backup-v1", "local-archive-key", 32);
+    return crypto::hkdf_sha256(opts_.identity_secret, "acadia-backup-v2", "local-archive-key", 32);
 }
 
 /// @brief Seal an archive with the local identity-derived key.
 /// @param tar_bytes Archive bytes to seal.
 /// @return The sealed bytes.
-std::string BackupEngine::encrypt_archive(const std::string& tar_bytes) const
+Result<std::string> BackupEngine::encrypt_archive(const std::string& tar_bytes) const
 {
-    return crypto::aead_seal(key_for_archive(), tar_bytes, [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); });
+    // INS-004: a CSPRNG failure fails the seal instead of sealing with an
+    // uninitialised (reused) nonce.
+    return crypto::aead_seal_checked(key_for_archive(), tar_bytes);
 }
 
 /// @brief Decrypt a locally sealed archive.
@@ -154,7 +169,13 @@ std::string BackupEngine::encrypt_archive(const std::string& tar_bytes) const
 Result<tar::FileEntry> BackupEngine::decrypt_archive(const std::string& blob) const
 {
     auto opened = crypto::aead_open(key_for_archive(), blob);
-    if (!opened.ok()) return Result<tar::FileEntry>::fail(opened.error);
+    if (!opened.ok())
+    {
+        // Pre-T-P31 archive: sealed under the v1 key.
+        auto legacy = crypto::aead_open(key_for_archive(true), blob);
+        if (!legacy.ok()) return Result<tar::FileEntry>::fail(opened.error);
+        opened = legacy;
+    }
     tar::FileEntry e;
     e.name = "archive.tar";
     e.data = *opened;
@@ -172,8 +193,7 @@ Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, 
     // INS-005: refuse to seal with an empty identity secret. An empty secret
     // would make the archive key a fleet-wide constant (HKDF over ""), so
     // every device's backups would share one trivially known key.
-    if (opts_.identity_secret.empty())
-        return Result<ArchiveInfo>::fail(Errc::Unavailable, "no factory secret — archive sealing refused", "create");
+    if (opts_.identity_secret.empty()) return Result<ArchiveInfo>::fail(Errc::Unavailable, "no factory secret — archive sealing refused", "create");
 
     std::vector<std::pair<std::string, std::string>> files;
     for (const auto& p : paths) collect(fs_, p, "", excludes, &files);
@@ -204,7 +224,9 @@ Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, 
 
     std::string tar_bytes = tar::write_ustar(tar_files);
     if (tar_bytes.empty()) return Result<ArchiveInfo>::fail(Errc::InvalidArgument, "tar write failed (path too long?)", "create");
-    std::string blob = encrypt_archive(tar_bytes);
+    auto sealed = encrypt_archive(tar_bytes);
+    if (!sealed.ok()) return Result<ArchiveInfo>::fail(sealed.error);
+    std::string blob = *sealed;
     std::string name = "backup-" + std::to_string(now_unix_s) + ".abk";
     std::string path = fs_.join(archive_dir, name);
     Error e = fs_.write(path, blob);
@@ -400,18 +422,23 @@ Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) cons
                                          "no HQ public key configured: refusing to upload an "
                                          "archive unencrypted",
                                          "backup");
-    auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
-    crypto::X25519Key eph = crypto::x25519_generate(rng);
+    // INS-004: the ephemeral key must come from a working CSPRNG.
+    uint8_t eph_priv[32];
+    Error rng_err = crypto::random_bytes(eph_priv, sizeof eph_priv);
+    if (!rng_err.ok()) return Result<std::string>::fail(rng_err);
+    crypto::X25519Key eph = crypto::x25519_generate([&](uint8_t* out, size_t n) { std::memcpy(out, eph_priv, std::min(n, sizeof eph_priv)); });
     auto shared = crypto::x25519(eph.priv.data(), reinterpret_cast<const uint8_t*>(opts_.hq_public_key.data()));
 
     // Bind the ephemeral public key into the KDF so a shared secret cannot be
     // replayed under a different ephemeral key.
     std::string eph_pub(reinterpret_cast<const char*>(eph.pub.data()), 32);
-    std::string key = crypto::hkdf_sha256(std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub, "arches-backup-hq-v1", 32);
+    std::string key = crypto::hkdf_sha256(std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub, "acadia-backup-hq-v2", 32);
 
+    auto body = crypto::aead_seal_checked(key, plaintext);
+    if (!body.ok()) return body;
     std::string out(kHqSealMagic, sizeof(kHqSealMagic));
     out += eph_pub;
-    out += crypto::aead_seal(key, plaintext, rng);
+    out += *body;
     return Result<std::string>::good(std::move(out));
 }
 
@@ -427,8 +454,13 @@ Result<std::string> BackupEngine::open_from_hq(const std::string& sealed, const 
     if (sealed.size() < sizeof(kHqSealMagic) + 32 || std::memcmp(sealed.data(), kHqSealMagic, sizeof(kHqSealMagic)) != 0) return Result<std::string>::fail(Errc::Corrupt, "not an HQ-sealed archive", "backup");
     const std::string eph_pub = sealed.substr(sizeof(kHqSealMagic), 32);
     auto shared = crypto::x25519(reinterpret_cast<const uint8_t*>(hq_private_key.data()), reinterpret_cast<const uint8_t*>(eph_pub.data()));
-    std::string key = crypto::hkdf_sha256(std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub, "arches-backup-hq-v1", 32);
-    return crypto::aead_open(key, sealed.substr(sizeof(kHqSealMagic) + 32));
+    const std::string ikm(reinterpret_cast<const char*>(shared.data()), shared.size());
+    const std::string body = sealed.substr(sizeof(kHqSealMagic) + 32);
+    auto opened = crypto::aead_open(crypto::hkdf_sha256(ikm, eph_pub, "acadia-backup-hq-v2", 32), body);
+    if (opened.ok()) return opened;
+    // Pre-T-P31 token (v1 info string).
+    auto legacy = crypto::aead_open(crypto::hkdf_sha256(ikm, eph_pub, "arches-backup-hq-v1", 32), body);
+    return legacy.ok() ? legacy : opened;
 }
 
 } // namespace domain

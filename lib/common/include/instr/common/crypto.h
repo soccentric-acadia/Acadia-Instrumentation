@@ -117,6 +117,11 @@ std::string aead_seal(const std::string& key32, const std::string& plaintext, co
 /// @param sealed Sealed token.
 /// @return Plaintext, or a SignatureInvalid/Corrupt error on tampering.
 Result<std::string> aead_open(const std::string& key32, const std::string& sealed);
+/**
+ * @brief Seal with a nonce from the system CSPRNG; fails (never seals) when
+ *        the CSPRNG fails (T-P31, INS-004).
+ */
+Result<std::string> aead_seal_checked(const std::string& key32, const std::string& plaintext);
 
 /// @brief HKDF-SHA256 key derivation (RFC 5869).
 /// @param ikm Input key material.

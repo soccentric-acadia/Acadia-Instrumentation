@@ -25,6 +25,7 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
+#include "instr/common/process.h"
 #include "instr/ota/domain.h"
 
 #include "instr/common/signature.h"
@@ -214,21 +215,16 @@ Result<int> OtaEngine::run_install(const std::string& artifact, const std::strin
     //   -i <file>   install this artifact
     //   -e <sel>    software selection: which slot to install into
     //   -p          post-install: we handle the reboot decision ourselves
-    std::string cmd = swupdate_binary_ + " -i " + artifact + " -e stable," + target_slot;
-    if (m.preserve_pst || m.preserve_home)
-    {
-        // /home and /pst are preserved unless the update explicitly asks
-        // otherwise (§6, §7.9); SWUpdate honours this through the selection.
-        cmd += " -e preserve,data";
-    }
-    cmd += " 2>&1";
-    FILE* pipe = ::popen(cmd.c_str(), "r");
-    if (!pipe) return Result<int>::fail(Errc::Unavailable, "cannot launch " + swupdate_binary_, "install");
-    std::string output;
-    char buf[512];
-    while (std::fgets(buf, sizeof(buf), pipe)) output += buf;
-    int rc = ::pclose(pipe);
-    if (rc != 0) return Result<int>::fail(Errc::Io, "swupdate failed (rc=" + std::to_string(rc) + "): " + output, "install");
+    //
+    // T-P31 (INS-008): argv exec — the artifact path was spliced into a popen
+    // shell string. INS-010: SWUpdate honours ONE -e; the former second
+    // `-e preserve,data` silently replaced the slot selection. /pst and /home
+    // are separate partitions no bundle writes, so preservation needs no
+    // selection of its own (m.preserve_* only documents intent).
+    (void)m;
+    auto run = proc::run_argv({swupdate_binary_, "-i", artifact, "-e", "stable," + target_slot}, true, true);
+    if (!run.spawned) return Result<int>::fail(Errc::Unavailable, "cannot launch " + swupdate_binary_, "install");
+    if (run.exit_code != 0) return Result<int>::fail(Errc::Io, "swupdate failed (rc=" + std::to_string(run.exit_code) + "): " + run.output, "install");
     return Result<int>::good(0);
 }
 

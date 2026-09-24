@@ -88,9 +88,7 @@ bool control_allowed(const std::string& actor, const std::string& op)
     normalized.reserve(op.size());
     for (char c : op) normalized.push_back(c == '-' ? '_' : c);
     static const std::set<std::string> hq_denied = {
-        "reset",           "factory_reset", "restart", "stop", "start",
-        "apply_artifact",  "rollback",      "reboot",  "shutdown", "spoke_control",
-        "unit_start",      "unit_stop",     "unit_restart",
+        "reset", "factory_reset", "restart", "stop", "start", "apply_artifact", "rollback", "reboot", "shutdown", "spoke_control", "unit_start", "unit_stop", "unit_restart",
     };
     return hq_denied.count(normalized) == 0;
 }
@@ -673,8 +671,7 @@ class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service, telem
             o.set("hardware_revision", JValue(f.batch().hardware_revision()));
             o.set("device_serial", JValue(f.batch().device_serial()));
             o.set("mono_ns", JValue(double(f.batch().ts().mono_ns())));
-            if (f.batch().ts().wall_valid())
-                o.set("wall_unix_ms", JValue(double(f.batch().ts().wall_unix_ns() / 1'000'000)));
+            if (f.batch().ts().wall_valid()) o.set("wall_unix_ms", JValue(double(f.batch().ts().wall_unix_ns() / 1'000'000)));
             m.payload_json = o.dump();
             m.ts = f.batch().ts();
         }
@@ -1893,10 +1890,7 @@ bool HqClient::try_session()
                     log_.error("istate", "HQ generic command refused: no daemon in json_args");
                     core_.push_event_to_spool("{\"kind\":\"hq_command_refused\",\"reason\":\"no_daemon\"}");
                 }
-                else
-                {
-                    core_.relay_command(daemon, cmd);
-                }
+                else { core_.relay_command(daemon, cmd); }
             }
         }
         open = false;
