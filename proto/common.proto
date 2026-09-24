@@ -1,4 +1,4 @@
-// Arches Instrumentation — shared protocol types.
+// Acadia Instrumentation — shared protocol types.
 // One wire format for services (R3): gRPC everywhere; UDS on-box, WG tunnel to HQ.
 syntax = "proto3";
 package instr.common;

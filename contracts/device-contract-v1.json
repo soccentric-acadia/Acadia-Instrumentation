@@ -11,7 +11,7 @@
   "alarm_catalog": {
     "revision": 1,
     "path": "../catalog/alarms.yaml",
-    "sha256": "5b35097111084f3c5f1e92640405fa467010c0fe3003d470a81864d2d8906706"
+    "sha256": "1bc612855c1cf68ca503735ba9bd0c4ee9dcc686de5aefed9672f56684ea9b75"
   },
   "compatibility": {
     "registration": "exact-proto-schema-version",

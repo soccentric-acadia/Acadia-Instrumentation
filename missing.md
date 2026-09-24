@@ -1,4 +1,4 @@
-# Gap report — Arches Instrumentation vs REQ.md
+# Gap report — Acadia Instrumentation vs REQ.md
 
 **Status: all findings closed.** Build clean (no warnings), 310/310 tests
 passing (was 278), clean under ASan and UBSan, and clean under TSan in our

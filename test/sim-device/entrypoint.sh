@@ -1,5 +1,5 @@
 #!/bin/sh
-# Arches Instrumentation — simulated device entrypoint (REQ §12).
+# Acadia Instrumentation — simulated device entrypoint (REQ §12).
 #
 # Brings up istate and the nine spokes in the declared startup order (§7.1):
 #   istate -> faults, monitord, hardware -> alarms, logmanager, telemetry
@@ -20,7 +20,7 @@ serial: SIM-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
 hw_revision: sim-rev-a
 board_variant: x86-64
 mfg_date: 1970-01-01
-hostname_base: arches-sim
+hostname_base: acadia-sim
 YAML
   head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /pst/factory/identity/.secret
 fi

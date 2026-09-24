@@ -4,4 +4,4 @@ serial: ARC-ORIN-0001A7F3
 hw_revision: rev-c
 board_variant: jetson-orin-nano
 mfg_date: 2026-02-14
-hostname_base: arches-orin
+hostname_base: acadia-rpi5

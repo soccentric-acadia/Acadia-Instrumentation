@@ -1,4 +1,4 @@
-# Arches Instrumentation — top-level developer entry point (REQ §14).
+# Acadia Instrumentation — top-level developer entry point (REQ §14).
 #
 # Host-native only: a C++17 toolchain + CMake + protoc/grpc on the host is
 # everything this repo needs to build and test. Binaries land in
@@ -12,7 +12,7 @@ BUILD_DIR    := build-$(PRESET)
 .PHONY: help build test check-format format tidy clean version
 
 help:
-	@echo 'Arches Instrumentation — make targets (host-native, PRESET=$(PRESET)):'
+	@echo 'Acadia Instrumentation — make targets (host-native, PRESET=$(PRESET)):'
 	@echo '  make build         default: host-native build -> $(BUILD_DIR)/'
 	@echo '  make test          run the test suite (ctest) natively'
 	@echo '  make check-format  clang-format gate natively'

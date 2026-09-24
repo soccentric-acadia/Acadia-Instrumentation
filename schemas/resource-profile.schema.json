@@ -1,5 +1,5 @@
 {
-  "$id": "https://arches.example/schemas/resource-profile.schema.json",
+  "$id": "https://acadia.example/schemas/resource-profile.schema.json",
   "title": "Resource profile: sampling, retention, budgets by platform class (REQ §5.1)",
   "type": "object",
   "required": ["platform_class"],

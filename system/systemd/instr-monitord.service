@@ -1,5 +1,5 @@
 [Unit]
-Description=Arches Instrumentation monitord
+Description=Acadia Instrumentation monitord
 Documentation=file:///usr/share/doc/instrumentation/interface.md
 After=instr-istate.service
 Wants=instr-istate.service

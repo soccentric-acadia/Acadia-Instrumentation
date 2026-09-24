@@ -1,4 +1,4 @@
-# Static analysis for Arches Instrumentation (REQ §14).
+# Static analysis for Acadia Instrumentation (REQ §14).
 #
 # Scoped deliberately: checks that catch real defects in this codebase —
 # lifetime and correctness bugs, misuse of the standard library, and the

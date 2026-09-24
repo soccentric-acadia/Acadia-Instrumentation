@@ -1,5 +1,5 @@
 {
-  "$id": "https://arches.example/schemas/alarm-catalog.schema.json",
+  "$id": "https://acadia.example/schemas/alarm-catalog.schema.json",
   "title": "Master alarm catalog (REQ §8)",
   "type": "object",
   "required": ["entries"],

@@ -1,5 +1,5 @@
 {
-  "$id": "https://arches.example/schemas/istate-time-policy.schema.json",
+  "$id": "https://acadia.example/schemas/istate-time-policy.schema.json",
   "title": "Time policy (REQ §7.1: istate owns policy, networkd applies)",
   "type": "object",
   "properties": {

@@ -1,4 +1,4 @@
-# Arches Instrumentation
+# Acadia Instrumentation
 
 Complete C++17 on-device software management and observability suite for a
 fleet of embedded Linux devices across nine hardware targets (NVIDIA Jetson,

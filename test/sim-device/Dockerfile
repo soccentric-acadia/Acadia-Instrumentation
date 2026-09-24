@@ -1,5 +1,5 @@
 # ============================================================================
-#  Arches Instrumentation — simulated device (REQ §12)
+#  Acadia Instrumentation — simulated device (REQ §12)
 #
 #  "Simulated device — the full daemon set in a container, so HQ and
 #   Configuration can be developed without hardware."
@@ -9,8 +9,8 @@
 #  Nothing is mocked except the hardware itself, so a Configuration or HQ
 #  developer talks to the same interfaces a device exposes.
 #
-#  Build:  docker build -f test/sim-device/Dockerfile -t arches/sim-device .
-#  Run:    docker run --rm -it -v arches-pst:/pst arches/sim-device
+#  Build:  docker build -f test/sim-device/Dockerfile -t acadia/sim-device .
+#  Run:    docker run --rm -it -v acadia-pst:/pst acadia/sim-device
 #  Talk to it:
 #          docker exec -it <id> istate_ctrl status
 #          docker exec -it <id> monitor_ctrl sample-once

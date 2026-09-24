@@ -1,4 +1,4 @@
-# Arches Instrumentation — master alarm catalog (REQ §8).
+# Acadia Instrumentation — master alarm catalog (REQ §8).
 # Code-generated into a shared C++ header at build time; the same catalog is
 # consumed by HQ so alarms render without hardcoding.
 # 32-bit ID layout (locked):
@@ -503,15 +503,15 @@ entries:
   # free for a future daemon, and applications start at a clean 0x10 so the
   # two groups stay visually distinct in a raw code:
   #
-  #   0x10  arches-hal      owner "arches-hal"
-  #   0x11  arches-client   owner "arches-client"
-  #   0x12  arches-server   owner "arches-server"
+  #   0x10  acadia-hal      owner "acadia-hal"
+  #   0x11  acadia-client   owner "acadia-client"
+  #   0x12  acadia-server   owner "acadia-server"
   #
   # The `owner` on a RaiseAlarm call must match the name above exactly and for
   # the life of the alarm -- an alarm raised as one owner and cleared as
   # another does not clear.
 
-  # ---- arches-hal (module 0x10, application) ----
+  # ---- acadia-hal (module 0x10, application) ----
   - id: 0x4_10_1_0001
     name: hal_module_fault
     severity: MAJOR
@@ -540,7 +540,7 @@ entries:
     auto_clear: auto
     hq_reportable: true
 
-  # ---- arches-client (module 0x11, application) ----
+  # ---- acadia-client (module 0x11, application) ----
   - id: 0x4_11_3_0001
     name: client_run_aborted
     severity: MAJOR
@@ -555,7 +555,7 @@ entries:
     severity: MINOR
     probable_cause: communications-subsystem-failure
     specific_problem: server-stream-disconnected
-    description: The result stream to Arches-Server dropped; results are spooling locally.
+    description: The result stream to Acadia-Server dropped; results are spooling locally.
     escalation: promote-after-1h
     auto_clear: auto
     hq_reportable: true
@@ -564,14 +564,14 @@ entries:
     severity: WARNING
     probable_cause: storage-capacity-issue
     specific_problem: result-spool-backlog
-    description: The local result spool is growing faster than it drains to Arches-Server.
+    description: The local result spool is growing faster than it drains to Acadia-Server.
     escalation: none
     auto_clear: auto
     hq_reportable: true
 
-  # ---- arches-server (module 0x12, application) ----
+  # ---- acadia-server (module 0x12, application) ----
   #
-  # Arches-Server runs on an x86 host, not the Jetson. Whether it reaches an
+  # Acadia-Server runs on an x86 host, not the device. Whether it reaches an
   # istate at all is an open question (Task.md E-07); these ids are allocated
   # either way so the allocation does not have to be revisited once it is
   # settled -- and because allocation is one-way, deferring it is the more

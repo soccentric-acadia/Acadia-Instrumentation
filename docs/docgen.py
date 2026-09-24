@@ -27,7 +27,7 @@ def parse_proto(path):
     return name, pkg, messages, services
 
 def main():
-    out = ["# Arches Instrumentation — Interface Reference",
+    out = ["# Acadia Instrumentation — Interface Reference",
            "",
            "Generated from proto/ and schemas/ — do not edit by hand.",
            ""]

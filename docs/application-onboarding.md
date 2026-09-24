@@ -1,7 +1,7 @@
 # Onboarding an application
 
 An *application* is any process on the device that is not one of the ten
-instrumentation daemons — `arches-hal`, `arches-client`, and anything else that
+instrumentation daemons — `acadia-hal`, `acadia-client`, and anything else that
 runs alongside them. R5 says an alarm is declared by an application and by
 nothing else, so an application that has not done the steps below cannot
 participate in the alarm story at all.
@@ -81,8 +81,8 @@ without them arrives as a bare number.
 
 `owner` is required on every alarm call (R5). It is how the timeline attributes
 a condition to the application that declared it. Pick one name per application,
-put it in a constant, and never vary it — an alarm raised as `arches-client` and
-cleared as `arches_client` does not clear.
+put it in a constant, and never vary it — an alarm raised as `acadia-client` and
+cleared as `acadia_client` does not clear.
 
 **7. Handle `needs_snapshot`.**
 

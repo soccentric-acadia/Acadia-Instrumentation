@@ -1,2 +1,0 @@
-board: jetson-orin-nano
-capabilities: [gnss, ptp, can, display, watchdog, wifi, wifi_ap]

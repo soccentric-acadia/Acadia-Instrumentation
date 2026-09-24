@@ -74,7 +74,7 @@ TEST(Provisioning, FirstBootFullSequence)
         // Factory signature present: HQ verifies against the manufacturing record.
         EXPECT_NE(ident.factory_sig.size(), 0u);
         TunnelConfig t;
-        t.hq_endpoint = "hq.arches.example:51820";
+        t.hq_endpoint = "hq.acadia.example:51820";
         t.device_addr = "10.7.0.2";
         t.hq_addr = "10.7.0.1";
         t.peer_pubkey_b64 = "hq-pub-key";
@@ -90,7 +90,7 @@ TEST(Provisioning, FirstBootFullSequence)
     // Tunnel config persisted.
     auto peer = f.pst.read_protected("system/networkd/wg-peer.yaml");
     ASSERT_TRUE(peer.ok());
-    EXPECT_NE(peer->find("hq.arches.example"), std::string::npos);
+    EXPECT_NE(peer->find("hq.acadia.example"), std::string::npos);
     // Second boot: loads existing identity, no re-enrollment.
     Provisioner again(f.pst, f.plat, f.fs);
     auto id2 = again.run_first_boot([](const DeviceIdentity&) {

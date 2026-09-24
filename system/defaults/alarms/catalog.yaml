@@ -1,7 +1,7 @@
 # Alarm catalog seeded into /pst/system/alarms/catalog.yaml (REQ §6, §7.6).
 # Alarms merges the shipped catalog into this on every update, preserving
 # operator edits to severities and text.
-# Arches Instrumentation — master alarm catalog (REQ §8).
+# Acadia Instrumentation — master alarm catalog (REQ §8).
 # Code-generated into a shared C++ header at build time; the same catalog is
 # consumed by HQ so alarms render without hardcoding.
 # 32-bit ID layout (locked):

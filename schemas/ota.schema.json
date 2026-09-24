@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://arches.soccentric.com/schemas/ota.schema.json",
+  "$id": "https://acadia.soccentric.com/schemas/ota.schema.json",
   "title": "ota configuration (REQ \u00a77.9)",
   "description": "Validated at load; a typo is a loud rejection, never a silent behavioural change (REQ \u00a79).",
   "type": "object",

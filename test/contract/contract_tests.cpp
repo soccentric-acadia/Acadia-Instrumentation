@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -90,7 +90,7 @@ TEST(ContractArtifacts, PublishedMetadataMatchesDescriptor)
     ASSERT_FALSE(compatibility.empty());
     EXPECT_NE(metadata.find("\"contract_version\": 1"), std::string::npos);
     EXPECT_NE(metadata.find("\"proto_schema_version\": 3"), std::string::npos);
-    EXPECT_NE(metadata.find("5b35097111084f3c5f1e92640405fa467010c0fe3003d470a81864d2d8906706"), std::string::npos);
+    EXPECT_NE(metadata.find("1bc612855c1cf68ca503735ba9bd0c4ee9dcc686de5aefed9672f56684ea9b75"), std::string::npos);
     EXPECT_NE(compatibility.find("\"compatible\": \"exact match\""), std::string::npos);
     EXPECT_NE(compatibility.find("\"breaking_changes\""), std::string::npos);
 }

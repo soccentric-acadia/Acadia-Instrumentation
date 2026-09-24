@@ -1,4 +1,4 @@
-# Arches Instrumentation — Interface Reference
+# Acadia Instrumentation — Interface Reference
 
 Generated from proto/ and schemas/ — do not edit by hand.
 

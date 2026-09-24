@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://arches.soccentric.com/schemas/telemetry.schema.json",
+  "$id": "https://acadia.soccentric.com/schemas/telemetry.schema.json",
   "title": "telemetry configuration (REQ \u00a77.8)",
   "description": "Validated at load; a typo is a loud rejection, never a silent behavioural change (REQ \u00a79).",
   "type": "object",

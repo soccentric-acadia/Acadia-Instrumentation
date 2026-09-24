@@ -4,8 +4,8 @@ The full daemon set in a container (REQ §12), so HQ and Configuration can be
 developed without hardware.
 
 ```bash
-docker build -f test/sim-device/Dockerfile -t arches/sim-device .
-docker run --rm -it --name arches-sim arches/sim-device
+docker build -f test/sim-device/Dockerfile -t acadia/sim-device .
+docker run --rm -it --name acadia-sim acadia/sim-device
 ```
 
 It runs the shipped binaries against the simulated platform layer: real gRPC
@@ -15,19 +15,19 @@ delivery from `/pst`. Only the hardware is simulated.
 Talk to it the way you would talk to a device:
 
 ```bash
-docker exec -it arches-sim istate_ctrl status
-docker exec -it arches-sim istate_ctrl spokes
-docker exec -it arches-sim monitor_ctrl sample-once
-docker exec -it arches-sim alarm_ctrl raise id=0x10410007 owner=demo text="test alarm"
-docker exec -it arches-sim alarm_ctrl list
+docker exec -it acadia-sim istate_ctrl status
+docker exec -it acadia-sim istate_ctrl spokes
+docker exec -it acadia-sim monitor_ctrl sample-once
+docker exec -it acadia-sim alarm_ctrl raise id=0x10410007 owner=demo text="test alarm"
+docker exec -it acadia-sim alarm_ctrl list
 ```
 
 To reach it from a Configuration UI running on the host, publish the socket
 directory:
 
 ```bash
-docker run --rm -it -v /tmp/arches-run:/run/instrumentation arches/sim-device
-# Configuration then dials /tmp/arches-run/configuration.sock
+docker run --rm -it -v /tmp/acadia-run:/run/instrumentation acadia/sim-device
+# Configuration then dials /tmp/acadia-run/configuration.sock
 ```
 
 `/pst` is a volume, so provisioning and configuration survive a restart —

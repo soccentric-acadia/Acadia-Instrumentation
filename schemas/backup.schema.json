@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://arches.soccentric.com/schemas/backup.schema.json",
+  "$id": "https://acadia.soccentric.com/schemas/backup.schema.json",
   "title": "backup configuration (REQ \u00a77.10)",
   "description": "Validated at load; a typo is a loud rejection, never a silent behavioural change (REQ \u00a79).",
   "type": "object",

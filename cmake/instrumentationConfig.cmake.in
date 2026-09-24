@@ -10,7 +10,7 @@
 # instrumentation_PROTO_DIR came out as /usr/share/instrumentation/proto.
 set(_instrumentation_PREFIX_DIR "${PACKAGE_PREFIX_DIR}")
 
-# instrumentationConfig.cmake — build an Arches Instrumentation client.
+# instrumentationConfig.cmake — build an Acadia Instrumentation client.
 #
 # Colocated applications talk to istate over gRPC-over-UDS. They do NOT link a
 # prebuilt stub library from this package, and that is deliberate: the

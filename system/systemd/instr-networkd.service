@@ -1,5 +1,5 @@
 [Unit]
-Description=Arches Instrumentation networkd
+Description=Acadia Instrumentation networkd
 Documentation=file:///usr/share/doc/instrumentation/interface.md
 After=instr-istate.service instr-faults.service instr-monitord.service instr-hardware.service instr-alarms.service instr-logmanager.service instr-telemetry.service
 Wants=instr-istate.service instr-faults.service instr-monitord.service instr-hardware.service instr-alarms.service instr-logmanager.service instr-telemetry.service

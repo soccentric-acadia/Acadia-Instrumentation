@@ -1,4 +1,4 @@
-# Formatting for Arches Instrumentation (REQ §14: consistent style, no drift).
+# Formatting for Acadia Instrumentation (REQ §14: consistent style, no drift).
 #
 # Microsoft style (Allman braces, which is what this tree is actually written
 # in) with a deliberately very wide column limit, tuned to the house

@@ -1,4 +1,4 @@
-# Arches Instrumentation — top-level build (REQ §14).
+# Acadia Instrumentation — top-level build (REQ §14).
 # One CMake project, one version for the whole suite (from VERSION).
 cmake_minimum_required(VERSION 3.16)
 project(instrumentation VERSION 0.0.0 LANGUAGES CXX)

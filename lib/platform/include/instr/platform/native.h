@@ -48,7 +48,7 @@ namespace platform
 /// @brief Mount point of the boot partition, where the A/B slot flag files live.
 ///
 /// Acadia-OS mounts the boot partition at `/boot` on all three wic layouts
-/// (`meta/meta-arches/wic/*.wks`, `part /boot`). This used to be hardcoded to
+/// (`meta/meta-acadia/wic/*.wks`, `part /boot`). This used to be hardcoded to
 /// `/mnt/boot`, which exists on no Acadia image -- so on a board without a
 /// U-Boot environment the flag-file fallback wrote slot state into a
 /// non-existent directory and every write failed. instr-ota.service also named

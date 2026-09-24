@@ -1,2 +1,0 @@
-board: zynq-7000
-capabilities: [can, watchdog]

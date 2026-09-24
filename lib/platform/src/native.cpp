@@ -25,6 +25,8 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
+#include <yaml-cpp/yaml.h>
+
 #include "instr/common/process.h"
 #include "instr/platform/native.h"
 
@@ -132,25 +134,27 @@ Result<FactoryIdentity> NativePlatform::read_factory_identity()
     auto f = read_file("/pst/factory/identity/identity.yaml");
     if (!f.ok()) return Result<FactoryIdentity>::fail(f.error.code, f.error.message, "factory identity");
     FactoryIdentity id;
-    // Minimal YAML scalar extraction (config library handles full validation
-    // elsewhere); keys are flat.
-    auto get = [&](const std::string& key) -> std::string {
-        size_t pos = f->find(key + ":");
-        if (pos == std::string::npos) return "";
-        size_t vs = f->find_first_not_of(" \t", pos + key.size() + 1);
-        size_t ve = f->find('\n', vs);
-        if (vs == std::string::npos) return "";
-        if (ve == std::string::npos) ve = f->size();
-        std::string v = f->substr(vs, ve - vs);
-        while (!v.empty() && (v.back() == '\r' || v.back() == ' ')) v.pop_back();
-        if (v.size() >= 2 && v.front() == '"' && v.back() == '"') v = v.substr(1, v.size() - 2);
-        return v;
-    };
-    id.serial = get("serial");
-    id.hw_revision = get("hw_revision");
-    id.board_variant = get("board_variant");
-    id.mfg_date = get("mfg_date");
-    id.hostname_base = get("hostname_base");
+    // INS-019 (T-P32): parse with yaml-cpp. The former substring scanner took
+    // the first "serial:" anywhere — a comment or a `board_serial:` key won —
+    // and mishandled quoting.
+    try
+    {
+        YAML::Node root = YAML::Load(*f);
+        if (!root.IsMap()) return Result<FactoryIdentity>::fail(Errc::Corrupt, "identity.yaml is not a mapping", "factory identity");
+        auto get = [&](const char* key) -> std::string {
+            const YAML::Node n = root[key];
+            return n && n.IsScalar() ? n.as<std::string>() : std::string();
+        };
+        id.serial = get("serial");
+        id.hw_revision = get("hw_revision");
+        id.board_variant = get("board_variant");
+        id.mfg_date = get("mfg_date");
+        id.hostname_base = get("hostname_base");
+    }
+    catch (const YAML::Exception& e)
+    {
+        return Result<FactoryIdentity>::fail(Errc::Corrupt, std::string("identity.yaml: ") + e.what(), "factory identity");
+    }
     // INS-005: a missing /pst/factory/identity/.secret must NOT silently
     // become an empty string — downstream consumers derive backup keys and
     // provisioning HMACs from it, and an empty fleet-wide constant would

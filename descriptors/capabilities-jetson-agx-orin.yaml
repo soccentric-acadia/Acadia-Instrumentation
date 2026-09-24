@@ -1,2 +1,0 @@
-board: jetson-agx-orin
-capabilities: [gnss, ptp, can, display, watchdog]

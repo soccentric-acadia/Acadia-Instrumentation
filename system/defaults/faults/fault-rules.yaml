@@ -1,7 +1,7 @@
 # Fault rules seeded into /pst/system/faults/fault-rules.yaml (REQ §6, §7.5).
 # Rule sets are data: HQ ships a new signature as configuration, not as a
 # release, by writing this file through istate.
-# Arches Instrumentation — default fault rule set (REQ §7.5).
+# Acadia Instrumentation — default fault rule set (REQ §7.5).
 # Rule sets are data: a new signature ships as configuration, not a release.
 # Each rule: symbolic name, regex signature, X.733 classification, severity,
 # fault id (fault domain, same 32-bit scheme as alarms), dedup key template

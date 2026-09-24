@@ -1,5 +1,5 @@
 {
-  "$id": "https://arches.example/schemas/devices.schema.json",
+  "$id": "https://acadia.example/schemas/devices.schema.json",
   "title": "Board device descriptor (REQ §5.1)",
   "type": "object",
   "required": ["board", "devices"],

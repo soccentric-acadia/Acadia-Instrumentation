@@ -1,5 +1,5 @@
 {
-  "$id": "https://arches.example/schemas/identity.schema.json",
+  "$id": "https://acadia.example/schemas/identity.schema.json",
   "title": "Factory identity (REQ §6: /pst/factory/identity/identity.yaml)",
   "type": "object",
   "required": ["serial","hw_revision","board_variant","mfg_date","hostname_base"],

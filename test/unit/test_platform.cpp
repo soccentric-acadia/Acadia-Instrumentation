@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation
+//  Acadia Instrumentation
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  Author: Sandesh Ghimire (sandesh@soccentric)
@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 
 #include "instr/common/config.h"
@@ -281,7 +282,7 @@ TEST(NativeNetworkApply, GeneratedFirewallAlwaysAdmitsTheTunnel)
 // ---------------------------------------------------------------------------
 // Ruleset scoping (Task.md B-02).
 //
-// Instrumentation and Arches-Configuration both program nftables on the same
+// Instrumentation and Acadia-Configuration both program nftables on the same
 // device and neither knows the other exists. Configuration writes an
 // `inet webconfig` table and removes it with a scoped `delete table`.
 // Instrumentation used to open its script with `flush ruleset`, which drops
@@ -384,13 +385,13 @@ TEST(FirewallScoping, EmptyNatPlanRendersNothing)
 // Boot-partition location (Task.md D-05).
 //
 // The A/B flag-file fallback (used on boards with no U-Boot environment) wrote
-// to /mnt/boot, which exists on no Arches image -- all three wic layouts mount
+// to /mnt/boot, which exists on no Acadia image -- all three wic layouts mount
 // the boot partition at /boot. instr-ota.service named the same wrong path in
 // ReadWritePaths under ProtectSystem=strict, which makes systemd refuse to
 // start the unit at all.
 // ---------------------------------------------------------------------------
 
-/// @brief The boot directory defaults to the mount point Arches-OS actually uses.
+/// @brief The boot directory defaults to the mount point Acadia-OS actually uses.
 TEST(BootDir, DefaultsToTheImageMountPoint)
 {
     ::unsetenv("INSTR_BOOT_DIR");
@@ -446,4 +447,32 @@ TEST(BootDir, SlotStateIsReadFromTheConfiguredBootDirectory)
     EXPECT_EQ(slots->active, "A");
     EXPECT_EQ(slots->pending, "B");
     ::system(("rm -rf " + root).c_str());
+}
+
+/// @brief INS-019: the factory identity is parsed as YAML — a comment or a
+/// decoy key can no longer shadow the real value; quotes are honoured.
+TEST(NativePlatform, FactoryIdentityParsesYamlNotSubstrings)
+{
+    const std::string root = ::testing::TempDir() + "ins019-root";
+    std::filesystem::create_directories(root + "/pst/factory/identity");
+    {
+        std::ofstream y(root + "/pst/factory/identity/identity.yaml");
+        y << "# serial: FROM-A-COMMENT\n"
+             "board_serial: DECOY\n"
+             "serial: \"ACD-0001\"\n"
+             "hw_revision: rev-c\n"
+             "hostname_base: acadia\n";
+        std::ofstream sec(root + "/pst/factory/identity/.secret");
+        sec << "s3cret";
+    }
+    platform::NativePlatform plat(root);
+    auto id = plat.read_factory_identity();
+    ASSERT_TRUE(id.ok()) << id.error.message;
+    EXPECT_EQ(id->serial, "ACD-0001");
+    EXPECT_EQ(id->hw_revision, "rev-c");
+    {
+        std::ofstream y(root + "/pst/factory/identity/identity.yaml");
+        y << "serial: [unterminated\n";
+    }
+    EXPECT_FALSE(plat.read_factory_identity().ok());
 }

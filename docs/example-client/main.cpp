@@ -1,5 +1,5 @@
 // ============================================================================
-//  Arches Instrumentation — minimal ApplicationApi client
+//  Acadia Instrumentation — minimal ApplicationApi client
 //
 //  Copyright (C) 2026 Soccentric. All rights reserved.
 //  This file is part of a proprietary product of Soccentric.
@@ -8,7 +8,7 @@
  * @file docs/example-client/main.cpp
  * @brief The smallest complete application that raises an alarm and reports a metric.
  *
- * This is the pattern Arches-HAL, Arches-Client and Arches-Server copy to
+ * This is the pattern Acadia-HAL, Acadia-Client and Acadia-Server copy to
  * satisfy R5 (an alarm is declared by an application and by nothing else).
  * Build it with the installed package:
  *
@@ -22,7 +22,7 @@
  *      a log line if istate is down or absent. An application must run
  *      normally on an image built without instrumentation -- that is the
  *      failure-behaviour contract Instrumentation itself commits to, and it is
- *      why arches-client.service says After= but not Requires=.
+ *      why acadia-client.service says After= but not Requires=.
  *
  *   2. `owner` is required on every alarm call (R5). It is how the alarm
  *      timeline attributes a condition to the application that declared it.
