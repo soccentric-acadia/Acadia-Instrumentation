@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-26 — Task 010: on-target validation suite (validation-only record)
+
+- Task record added: `tasks/010-on-target-validation-suite/` — the Acadia root
+  now ships a Python validation suite (`validation/`) that validates the
+  Instrumentation stack on a flashed Raspberry Pi from an x86 host over SSH
+  (92 checks: deployed artifacts, unit/registration liveness, per-verb
+  `_ctrl` functional coverage, cross-daemon integration, socket-permission
+  contracts, contract-artifact pinning, opt-in resilience).
+- **No source changes in this repository.** Parent record:
+  Acadia root `tasks/010-on-target-validation-suite/`.
+
 ## 2026-09-24 — Integration-production pass (T-P25, T-P31, T-P32, T-P35)
 
 - **Fix:** spokes could never register with istate on a device. With the default root "/", the dial target became `unix://run/...`, which gRPC rejects. `uds_target` now normalises it, and the topology tests use the production path shape (`3d03ba6`).
