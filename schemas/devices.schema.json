@@ -10,10 +10,12 @@
       "minItems": 0,
       "items": {
         "type": "object",
-        "required": ["name", "kind"],
+        "required": ["name", "kind", "capability"],
         "properties": {
           "name": {"type": "string", "pattern": "^[a-z0-9-]+$"},
           "kind": {"type": "string", "enum": ["gpio","led","can","usb","display","sensor","watchdog"]},
+          "capability": {"type": "string", "minLength": 1},
+          "reserved": {"type": "boolean"},
           "controls": {"type": "array", "items": {"type": "string"}},
           "checks": {"type": "array", "items": {
             "type": "object", "required": ["name","op"],

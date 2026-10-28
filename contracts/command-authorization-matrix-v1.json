@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "command_identifier": {
+    "field": "command_id",
+    "invariant": "AgentLink command_id and idempotency_key are the same non-empty value; Configuration derives the stable uint64 Instrumentation request_id from it until ControlRequest gains a string field."
+  },
+  "terminal_states": ["succeeded", "failed", "expired", "cancelled"],
+  "transitions": {
+    "queued": ["delivering", "cancelled", "expired"],
+    "delivering": ["succeeded", "failed", "queued", "cancelled", "expired"],
+    "terminal": []
+  },
+  "operations": [
+    {"operation":"configuration.read","hq_scopes":["devices:read"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":null},
+    {"operation":"configuration.write","hq_scopes":["devices:write"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":null},
+    {"operation":"backup.create","hq_scopes":["devices:operate"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"hq","confirmation":null},
+    {"operation":"backup.restore","hq_scopes":["devices:admin"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":"RESTORE"},
+    {"operation":"system.factory_reset","hq_scopes":["devices:admin"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"local-only","confirmation":"FACTORY-RESET"},
+    {"operation":"update.apply","hq_scopes":["devices:update"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":"APPLY-UPDATE"},
+    {"operation":"update.confirm","hq_scopes":["devices:update"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":null},
+    {"operation":"update.rollback","hq_scopes":["devices:update"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"local-only","confirmation":"ROLLBACK"},
+    {"operation":"users.*","hq_scopes":["devices:admin"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":null},
+    {"operation":"ssh_keys.set","hq_scopes":["devices:admin"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"not-applicable","confirmation":null},
+    {"operation":"service.control","hq_scopes":["devices:admin"],"gateway_actor":"hq","configuration_target":"local","istate_actor":"local-only","confirmation":"SERVICE-CONTROL"},
+    {"operation":"spoke.*","hq_scopes":["devices:operate"],"gateway_actor":"hq","configuration_target":"relay","istate_actor":"hq","confirmation":"catalog-required"}
+  ],
+  "denials": [
+    "Unknown actors are denied at istate.",
+    "HQ is denied destructive spoke operations by istate even when a gateway frame is valid.",
+    "A terminal command is never dispatched again; reconnects replay its stored result payload.",
+    "Expired or cancelled commands are terminal and cannot be retried; only a retryable failure may return to queued."
+  ]
+}

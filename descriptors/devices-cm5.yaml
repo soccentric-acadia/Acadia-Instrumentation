@@ -6,6 +6,7 @@ devices:
   # fleet-standard handle the ctrl surface talks to.
   - name: status-led
     kind: led
+    capability: led
     params:
       name: ACT
     controls: [led_set, led_blink]
@@ -17,6 +18,7 @@ devices:
   # not the line itself on every kernel (see NativePlatform::sysfs_gpio_number).
   - name: gpio-user
     kind: gpio
+    capability: gpio
     params:
       line: 17
     controls: [gpio_set]

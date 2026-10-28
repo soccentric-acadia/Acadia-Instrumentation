@@ -26,6 +26,8 @@ jobs:
         run: make check-format
       - name: Operation catalog is current (T-P25)
         run: python3 tools/catalog/gen_operation_catalog.py --check
+      - name: Production contract is reproducible and locked (Task 014 P0-01/P0-02)
+        run: python3 tools/contracts/verify_production_contract.py
       - name: Contract golden is non-empty
         run: test -s test/contract/protos.golden.sha256
 

@@ -125,6 +125,8 @@ Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, co
             DeviceSpec s;
             if (const JValue* v = dv.find("name")) s.name = v->as_string();
             if (const JValue* v = dv.find("kind")) s.kind = v->as_string();
+            if (const JValue* v = dv.find("capability")) s.capability = v->as_string();
+            if (const JValue* v = dv.find("reserved")) s.reserved = v->as_bool();
             if (const JValue* v = dv.find("controls"))
                 for (const auto& c : v->items()) s.controls.push_back(c.as_string());
             if (const JValue* v = dv.find("checks"))
@@ -190,6 +192,8 @@ Result<CapabilityManifest> load_capability_manifest(const std::string& yaml_text
     if (!e.ok()) return Result<CapabilityManifest>::fail(e);
     CapabilityManifest m;
     if (const JValue* v = j.find("board")) m.board = v->as_string();
+    if (const JValue* v = j.find("hardware_matrix_version")) m.hardware_matrix_version = v->as_string();
+    if (const JValue* v = j.find("hardware_board_revision")) m.hardware_board_revision = v->as_string();
     if (const JValue* v = j.find("capabilities"))
         for (const auto& c : v->items()) m.capabilities.push_back(c.as_string());
     return Result<CapabilityManifest>::good(std::move(m));

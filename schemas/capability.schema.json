@@ -2,9 +2,11 @@
   "$id": "https://acadia.example/schemas/capability.schema.json",
   "title": "Capability manifest (REQ §5.1): honest reporting of what exists",
   "type": "object",
-  "required": ["board", "capabilities"],
+  "required": ["board", "hardware_matrix_version", "hardware_board_revision", "capabilities"],
   "properties": {
-    "board": {"type": "string"},
+    "board": {"type": "string", "enum": ["rpi-5", "cm5"]},
+    "hardware_matrix_version": {"type": "string", "enum": ["1.0.0"]},
+    "hardware_board_revision": {"type": "string", "enum": ["rpi5-cm5-bom-rev-c"]},
     "capabilities": {"type": "array", "items": {"type": "string"}}
   }
 }

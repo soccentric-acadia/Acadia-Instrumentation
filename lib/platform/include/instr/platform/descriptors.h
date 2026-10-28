@@ -59,6 +59,8 @@ struct DeviceSpec
 {
     std::string name; ///< "status-led", "gpio-1", "can0", "usb1", "display".
     std::string kind; ///< gpio / led / can / usb / display / sensor / watchdog.
+    std::string capability; ///< Capability manifest entry required to operate this peripheral.
+    bool reserved = false; ///< True when the peripheral must never be operated remotely.
     std::vector<std::string> controls; ///< Control op names this device accepts.
     std::vector<DeviceCheck> checks; ///< Health checks for this device.
     std::map<std::string, std::string> params; ///< Device parameters, e.g. line=1, port=1-2.
@@ -92,6 +94,8 @@ struct ResourceProfile
 struct CapabilityManifest
 {
     std::string board; ///< Board variant name.
+    std::string hardware_matrix_version; ///< Published Acadia-Hardware matrix version.
+    std::string hardware_board_revision; ///< Exact board revision selected by the matrix.
     std::vector<std::string> capabilities; ///< wifi, wifi_ap, can, display, gnss, ptp, watchdog, ...
     /// @brief Test membership of the manifest.
     /// @param c Capability name to test.

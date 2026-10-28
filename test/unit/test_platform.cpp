@@ -188,6 +188,41 @@ TEST(Descriptors, CapabilityManifest)
     EXPECT_FALSE(m->has("watchdog"));
 }
 
+TEST(Descriptors, AcadiaProductionCapabilityContractRejectsUnsupportedBoardAndRevision)
+{
+    auto schema = load_schema_text(R"({
+      "type":"object",
+      "required":["board","hardware_matrix_version","hardware_board_revision","capabilities"],
+      "properties":{
+        "board":{"type":"string","enum":["rpi-5","cm5"]},
+        "hardware_matrix_version":{"type":"string","enum":["1.0.0"]},
+        "hardware_board_revision":{"type":"string","enum":["rpi5-cm5-bom-rev-c"]},
+        "capabilities":{"type":"array","items":{"type":"string"}}
+      }
+    })");
+    ASSERT_TRUE(schema.ok());
+
+    auto supported = load_capability_manifest(
+        "board: rpi-5\nhardware_matrix_version: \"1.0.0\"\n"
+        "hardware_board_revision: rpi5-cm5-bom-rev-c\ncapabilities: [watchdog]\n",
+        *schema, "capabilities-rpi-5.yaml");
+    EXPECT_TRUE(supported.ok());
+    EXPECT_EQ(supported->hardware_matrix_version, "1.0.0");
+    EXPECT_EQ(supported->hardware_board_revision, "rpi5-cm5-bom-rev-c");
+
+    auto unsupported_board = load_capability_manifest(
+        "board: rpi-4b\nhardware_matrix_version: \"1.0.0\"\n"
+        "hardware_board_revision: rpi5-cm5-bom-rev-c\ncapabilities: [watchdog]\n",
+        *schema, "capabilities-rpi-4b.yaml");
+    EXPECT_FALSE(unsupported_board.ok());
+
+    auto unsupported_revision = load_capability_manifest(
+        "board: cm5\nhardware_matrix_version: \"1.0.0\"\n"
+        "hardware_board_revision: rpi5-cm5-bom-rev-b\ncapabilities: [watchdog]\n",
+        *schema, "capabilities-cm5.yaml");
+    EXPECT_FALSE(unsupported_revision.ok());
+}
+
 // ---------------------------------------------------------------------------
 // §7.2 / R8: networkd renders a plan and the platform applies it. This used
 // to be a no-op that discarded plan_json entirely, so every firewall rule,

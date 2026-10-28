@@ -53,7 +53,8 @@ class HardwareCore
     /// @param plat Platform primitives.
     /// @param ts Clock.
     /// @param desc Board device inventory.
-    HardwareCore(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc) : mgr_(plat, ts, desc)
+    /// @param capabilities Validated board/revision capability manifest.
+    HardwareCore(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc, const platform::CapabilityManifest& capabilities) : mgr_(plat, ts, desc, capabilities)
     {
     }
 

@@ -81,7 +81,8 @@ class DeviceManager
     /// @param plat Platform primitives.
     /// @param ts Clock.
     /// @param desc Board device inventory.
-    DeviceManager(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc) : plat_(plat), ts_(ts), desc_(desc)
+    /// @param capabilities Validated board/revision capability manifest.
+    DeviceManager(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc, const platform::CapabilityManifest& capabilities) : plat_(plat), ts_(ts), desc_(desc), capabilities_(capabilities)
     {
     }
 
@@ -95,6 +96,11 @@ class DeviceManager
     /// @return Pointer to the spec, or nullptr when unknown.
     /// @param name Device name to look up.
     const platform::DeviceSpec* find(const std::string& name) const;
+
+    /// @brief Authorize use of a descriptor device under the validated capability policy.
+    /// @param device Device name to authorize.
+    /// @return The authorized device or a diagnosable refusal.
+    Result<const platform::DeviceSpec*> authorize(const std::string& device) const;
 
     /// @brief Control operation: driving devices, not read-only.
     ///
@@ -156,6 +162,7 @@ class DeviceManager
     platform::IPlatform& plat_; ///< Platform primitives (not owned).
     TimeSource& ts_; ///< Clock (not owned).
     platform::DeviceDescriptor desc_; ///< Board device inventory.
+    platform::CapabilityManifest capabilities_; ///< Validated board/revision peripheral policy.
     std::map<std::string, uint64_t> last_check_mono_; ///< Last periodic check per device.
     double periodic_interval_s_ = 300; ///< Periodic scheduling interval.
 };

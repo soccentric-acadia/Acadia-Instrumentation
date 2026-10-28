@@ -45,6 +45,7 @@ static platform::DeviceDescriptor test_descriptor()
         platform::DeviceSpec s;
         s.name = "status-led";
         s.kind = "led";
+        s.capability = "led";
         s.controls = {"led_set", "led_blink"};
         s.checks = {{"blink-ack", "led_blink_ack", {}}, {"presence", "presence", {}}};
         d.devices.push_back(s);
@@ -53,6 +54,7 @@ static platform::DeviceDescriptor test_descriptor()
         platform::DeviceSpec s;
         s.name = "gpio-1";
         s.kind = "gpio";
+        s.capability = "gpio";
         s.params["line"] = "4";
         s.controls = {"gpio_set"};
         s.checks = {{"toggle", "gpio_toggle_read", {}}};
@@ -62,6 +64,7 @@ static platform::DeviceDescriptor test_descriptor()
         platform::DeviceSpec s;
         s.name = "can0";
         s.kind = "can";
+        s.capability = "can";
         s.params["iface"] = "can0";
         s.controls = {"can_send", "can_recv"};
         s.checks = {{"loopback", "can_loopback", {}}};
@@ -71,6 +74,7 @@ static platform::DeviceDescriptor test_descriptor()
         platform::DeviceSpec s;
         s.name = "display";
         s.kind = "display";
+        s.capability = "display";
         s.controls = {"display_control"};
         s.checks = {{"presence", "presence", {}}, {"probe", "display_probe", {}}};
         d.devices.push_back(s);
@@ -78,12 +82,22 @@ static platform::DeviceDescriptor test_descriptor()
     return d;
 }
 
+static platform::CapabilityManifest test_capabilities()
+{
+    platform::CapabilityManifest capabilities;
+    capabilities.board = "sim-board";
+    capabilities.hardware_matrix_version = "test-matrix-v1";
+    capabilities.hardware_board_revision = "test-revision";
+    capabilities.capabilities = {"led", "gpio", "can", "display"};
+    return capabilities;
+}
+
 /// @brief A GPIO toggle-read check passes against the simulated platform.
 TEST(HardwareChecks, GpioToggleReadPasses)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     auto r = mgr.check_device("gpio-1");
     ASSERT_EQ(r.size(), 1u);
     EXPECT_EQ(r[0].state, CheckState::Pass);
@@ -96,7 +110,7 @@ TEST(HardwareChecks, GpioStuckFails)
     platform::SimulatedPlatform plat;
     plat.fail_gpio(true);
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     auto r = mgr.check_device("gpio-1");
     EXPECT_EQ(r[0].state, CheckState::Fail);
 }
@@ -107,7 +121,7 @@ TEST(HardwareChecks, CanLoopbackFailsWhenInjected)
     platform::SimulatedPlatform plat;
     plat.fail_can(true);
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     auto r = mgr.check_device("can0");
     EXPECT_EQ(r[0].state, CheckState::Fail);
 }
@@ -118,7 +132,7 @@ TEST(HardwareChecks, DisplayNotPresent)
     platform::SimulatedPlatform plat;
     plat.fail_display(true);
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     auto r = mgr.check_device("display");
     // presence probe fails → not-present; probe check fails
     bool saw_not_present = false, saw_fail = false;
@@ -136,7 +150,7 @@ TEST(HardwareControls, DescriptorGatesControls)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     // gpio-1 declares gpio_set only — led_set is rejected.
     std::map<std::string, std::string> m;
     m["on"] = "true";
@@ -155,7 +169,7 @@ TEST(HardwareControls, LedBlinkAcknowledged)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     std::map<std::string, std::string> m;
     m["repeats"] = "3";
     EXPECT_TRUE(mgr.control("status-led", "led_blink", m).ok());
@@ -169,10 +183,61 @@ TEST(HardwareControls, UnknownDeviceIsLoudError)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     auto e = mgr.control("nonexistent", "led_set", {});
     EXPECT_EQ(e.code, Errc::NotFound);
     EXPECT_NE(e.message.find("nonexistent"), std::string::npos);
+}
+
+TEST(HardwareControls, CapabilityPolicyRejectsUnlistedReservedAndUnsupportedDevices)
+{
+    platform::DeviceDescriptor descriptor = test_descriptor();
+    platform::DeviceSpec console;
+    console.name = "debug-console";
+    console.kind = "gpio";
+    console.capability = "gpio";
+    console.reserved = true;
+    console.params["line"] = "14";
+    console.controls = {"gpio_set"};
+    console.checks = {{"toggle", "gpio_toggle_read", {}}};
+    descriptor.devices.push_back(console);
+
+    platform::CapabilityManifest capabilities = test_capabilities();
+    capabilities.capabilities.erase(capabilities.capabilities.begin() + 1); // gpio
+    platform::SimulatedPlatform plat;
+    ManualTimeSource ts;
+    DeviceManager mgr(plat, ts, descriptor, capabilities);
+
+    EXPECT_EQ(mgr.control("not-in-descriptor", "gpio_set", {{"value", "true"}}).code, Errc::NotFound);
+    EXPECT_EQ(mgr.control("debug-console", "gpio_set", {{"value", "true"}}).code, Errc::NotSupported);
+    EXPECT_EQ(mgr.control("gpio-1", "gpio_set", {{"value", "true"}}).code, Errc::NotSupported);
+    auto gpio = plat.gpio_get(4);
+    EXPECT_FALSE(gpio.ok()) << "rejected controls must not reach the platform";
+
+    auto reserved_check = mgr.check_device("debug-console");
+    ASSERT_EQ(reserved_check.size(), 1u);
+    EXPECT_EQ(reserved_check[0].state, CheckState::Unknown);
+    EXPECT_NE(reserved_check[0].detail.find("not supported"), std::string::npos);
+    auto unsupported_check = mgr.check_device("gpio-1");
+    ASSERT_EQ(unsupported_check.size(), 1u);
+    EXPECT_EQ(unsupported_check[0].state, CheckState::Unknown);
+    EXPECT_NE(unsupported_check[0].detail.find("not supported"), std::string::npos);
+    EXPECT_FALSE(plat.gpio_get(14).ok()) << "reserved checks must not toggle the console";
+    EXPECT_FALSE(plat.gpio_get(4).ok()) << "unsupported checks must not toggle GPIO";
+
+    auto all_checks = mgr.check_all();
+    EXPECT_GE(all_checks.size(), 2u);
+    bool saw_reserved = false;
+    bool saw_unsupported = false;
+    for (const auto& result : all_checks)
+    {
+        if (result.device == "debug-console" && result.check == "authorization" && result.state == CheckState::Unknown) saw_reserved = true;
+        if (result.device == "gpio-1" && result.check == "authorization" && result.state == CheckState::Unknown) saw_unsupported = true;
+    }
+    EXPECT_TRUE(saw_reserved);
+    EXPECT_TRUE(saw_unsupported);
+    EXPECT_FALSE(plat.gpio_get(14).ok()) << "check-all must not toggle the console";
+    EXPECT_FALSE(plat.gpio_get(4).ok()) << "check-all must not toggle unsupported GPIO";
 }
 
 /// @brief Periodic checks run once per interval, not per tick.
@@ -180,7 +245,7 @@ TEST(HardwareSchedule, DueChecksRunOncePerInterval)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     mgr.set_periodic_interval_s(10);
     auto first = mgr.due_checks(ts.mono_ns());
     EXPECT_FALSE(first.empty());
@@ -190,6 +255,39 @@ TEST(HardwareSchedule, DueChecksRunOncePerInterval)
     auto later = mgr.due_checks(ts.mono_ns());
     EXPECT_FALSE(later.empty());
 }
+
+TEST(HardwareSchedule, DueChecksRejectReservedAndUnsupportedGpioBeforeToggling)
+{
+    platform::DeviceDescriptor descriptor = test_descriptor();
+    platform::DeviceSpec console;
+    console.name = "debug-console";
+    console.kind = "gpio";
+    console.capability = "gpio";
+    console.reserved = true;
+    console.params["line"] = "14";
+    console.checks = {{"toggle", "gpio_toggle_read", {}}};
+    descriptor.devices.push_back(console);
+
+    platform::CapabilityManifest capabilities = test_capabilities();
+    capabilities.capabilities.erase(capabilities.capabilities.begin() + 1); // gpio
+    platform::SimulatedPlatform plat;
+    ManualTimeSource ts;
+    DeviceManager mgr(plat, ts, descriptor, capabilities);
+
+    const auto results = mgr.due_checks(ts.mono_ns());
+    bool saw_reserved = false;
+    bool saw_unsupported = false;
+    for (const auto& result : results)
+    {
+        if (result.device == "debug-console" && result.check == "authorization" && result.state == CheckState::Unknown && result.detail.find("not supported") != std::string::npos) saw_reserved = true;
+        if (result.device == "gpio-1" && result.check == "authorization" && result.state == CheckState::Unknown && result.detail.find("not supported") != std::string::npos) saw_unsupported = true;
+    }
+    EXPECT_TRUE(saw_reserved);
+    EXPECT_TRUE(saw_unsupported);
+    EXPECT_FALSE(plat.gpio_get(14).ok()) << "scheduled reserved checks must not toggle the console";
+    EXPECT_FALSE(plat.gpio_get(4).ok()) << "scheduled unsupported checks must not toggle GPIO";
+}
+
 // ---- CAN control (§7.4) -----------------------------------------------------
 //
 // §7.4 requires Hardware to drive its devices, "not read-only", and names CAN
@@ -202,7 +300,7 @@ TEST(HardwareCan, SendsAFrameToThePlatform)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     Error e = mgr.control("can0", "can_send", {{"id", "0x123"}, {"data", "deadbeef"}});
     ASSERT_TRUE(e.ok()) << e.str();
     const auto& sent = plat.can_sent("can0");
@@ -218,7 +316,7 @@ TEST(HardwareCan, DecimalIdsAndExtendedFramesAreAccepted)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     ASSERT_TRUE(mgr.control("can0", "can_send", {{"id", "291"}, {"extended", "true"}}).ok());
     const auto& sent = plat.can_sent("can0");
     ASSERT_EQ(sent.size(), 1u);
@@ -231,7 +329,7 @@ TEST(HardwareCan, MalformedPayloadIsRejectedDiagnosably)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     // Odd length, non-hex, and a classic frame over 8 bytes are all errors —
     // §14: every rejected input produces a diagnosable message.
     EXPECT_FALSE(mgr.control("can0", "can_send", {{"id", "1"}, {"data", "abc"}}).ok());
@@ -250,7 +348,7 @@ TEST(HardwareCan, ReceivesBufferedFrames)
     f.id = 0x7ff;
     f.data = {0x01, 0x02};
     plat.push_can_frame("can0", f);
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     auto r = mgr.can_receive("can0", 8);
     ASSERT_TRUE(r.ok()) << r.error.str();
     ASSERT_EQ(r->size(), 1u);
@@ -267,7 +365,7 @@ TEST(HardwareCan, UndeclaredControlIsRefused)
         if (dev.name == "can0") dev.controls.clear();
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, d);
+    DeviceManager mgr(plat, ts, d, test_capabilities());
     EXPECT_FALSE(mgr.control("can0", "can_send", {{"id", "1"}}).ok());
     EXPECT_FALSE(mgr.can_receive("can0", 1).ok());
 }
@@ -277,7 +375,7 @@ TEST(HardwareCan, ReceiveOnANonCanDeviceIsRefused)
 {
     platform::SimulatedPlatform plat;
     ManualTimeSource ts;
-    DeviceManager mgr(plat, ts, test_descriptor());
+    DeviceManager mgr(plat, ts, test_descriptor(), test_capabilities());
     EXPECT_FALSE(mgr.can_receive("status-led", 1).ok());
     EXPECT_FALSE(mgr.can_receive("no-such-device", 1).ok());
 }

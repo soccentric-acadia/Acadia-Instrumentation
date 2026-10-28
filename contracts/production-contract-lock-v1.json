@@ -1,0 +1,20 @@
+{
+  "contract": "acadia-instrumentation-production-contract",
+  "contract_version": 1,
+  "proto_schema_version": 3,
+  "descriptor": {
+    "path": "proto-schema-v3.pb",
+    "sha256": "8bd9d5e5ecb9b92770f0fc869181b67ab259a5a2428dc9cdb62fefc34fa3b469"
+  },
+  "configuration_protos": {
+    "common.proto": "9a5f2a4613124f6f30ed56546f958765950f4ef7336cf0ac9e9fc64b2959ff5b",
+    "faults.proto": "fb30837940e64d4c021658e60b4d6f1a594280bbc6450f40d02813b338dbf84e",
+    "istate.proto": "01966126ec746425c7e4b7aebdc00def47f20d9c46e2062847debcb5e7a6e617",
+    "logmanager.proto": "94624bbebd48189190dd33945c0ceb9f17281fe03ea2868ee1f975209d0b868b",
+    "telemetry.proto": "11383024a4b87aaa46b926f84b0c961f9f298ec024b14d9203afba355b44ab76"
+  },
+  "operation_catalog": {
+    "path": "operation-catalog.json",
+    "sha256": "7908b45500ecda01e537f530d538df2b337e38abf6262decd86457da3d55cbc2"
+  }
+}

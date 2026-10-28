@@ -186,4 +186,12 @@ if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
   add_test(NAME operation_catalog_up_to_date
            COMMAND ${Python3_EXECUTABLE}
                    "${CMAKE_SOURCE_DIR}/tools/catalog/gen_operation_catalog.py" --check)
+  add_test(NAME descriptor_compatibility
+           COMMAND ${Python3_EXECUTABLE}
+                   "${CMAKE_SOURCE_DIR}/tools/contracts/verify_descriptor_compatibility.py"
+                   "${CMAKE_SOURCE_DIR}/contracts/proto-schema-v3-compatibility-baseline.pb"
+                   "${CMAKE_SOURCE_DIR}/contracts/proto-schema-v3.pb")
+  add_test(NAME descriptor_compatibility_verifier
+           COMMAND ${Python3_EXECUTABLE}
+                   "${CMAKE_SOURCE_DIR}/tools/contracts/verify_descriptor_compatibility.py" --self-test)
 endif()

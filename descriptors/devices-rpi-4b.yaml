@@ -2,12 +2,14 @@ board: rpi-4b
 devices:
   - name: status-led
     kind: led
+    capability: led
     controls: [led_set, led_blink]
     checks:
       - name: blink-ack
         op: led_blink_ack
   - name: gpio-user
     kind: gpio
+    capability: gpio
     params:
       line: 17
     controls: [gpio_set]
@@ -16,6 +18,7 @@ devices:
         op: gpio_toggle_read
   - name: display
     kind: display
+    capability: display
     controls: [display_control]
     checks:
       - name: probe

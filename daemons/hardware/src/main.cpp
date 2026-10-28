@@ -76,15 +76,29 @@ int main(int argc, char** argv)
         std::string devices_used;
         auto txt = instr::read_first_available(fs, {root + "/pst/system/hardware/devices.yaml", root + "/etc/instrumentation/devices.yaml"}, &devices_used);
         auto sch = fs.read(root + "/usr/share/instrumentation/schemas/devices.schema.json");
-        if (txt.ok() && sch.ok())
+        auto caps_txt = fs.read(root + "/etc/instrumentation/capabilities.yaml");
+        auto caps_sch = fs.read(root + "/usr/share/instrumentation/schemas/capability.schema.json");
+        if (txt.ok() && sch.ok() && caps_txt.ok() && caps_sch.ok())
         {
             log.info("hardware", "devices.yaml loaded from " + devices_used);
             auto parsed_schema = instr::load_schema_text(*sch);
-            if (parsed_schema.ok()) schema = *parsed_schema;
-            auto desc = instr::platform::load_device_descriptor(*txt, schema, "devices.yaml");
-            if (desc.ok())
+            auto parsed_caps_schema = instr::load_schema_text(*caps_sch);
+            if (!parsed_schema.ok() || !parsed_caps_schema.ok())
             {
-                instr::hardware::HardwareCore core(plat, ts, *desc);
+                std::fprintf(stderr, "hardware: descriptor schema rejected\n");
+                return 1;
+            }
+            schema = *parsed_schema;
+            auto desc = instr::platform::load_device_descriptor(*txt, schema, "devices.yaml");
+            auto capabilities = instr::platform::load_capability_manifest(*caps_txt, *parsed_caps_schema, "capabilities.yaml");
+            if (!capabilities.ok())
+            {
+                std::fprintf(stderr, "hardware: capabilities.yaml rejected: %s\n", capabilities.error.str().c_str());
+                return 1;
+            }
+            if (desc.ok() && desc->board == capabilities->board)
+            {
+                instr::hardware::HardwareCore core(plat, ts, *desc, *capabilities);
                 auto table = instr::hardware::build_hardware_table(&core);
                 std::string run_dir = root + "/run/instrumentation";
                 std::string ctrl_path = args.socket_override.empty() ? run_dir + "/hardware-ctrl.sock" : args.socket_override;
@@ -120,10 +134,15 @@ int main(int argc, char** argv)
                 ctrl.stop();
                 return 0;
             }
+            if (desc.ok())
+            {
+                std::fprintf(stderr, "hardware: devices.yaml board does not match capabilities.yaml\n");
+                return 1;
+            }
             std::fprintf(stderr, "hardware: devices.yaml rejected: %s\n", desc.error.str().c_str());
             return 1;
         }
     }
-    std::fprintf(stderr, "hardware: devices.yaml not found under %s\n", root.c_str());
+    std::fprintf(stderr, "hardware: required devices or capability descriptors not found under %s\n", root.c_str());
     return 1;
 }

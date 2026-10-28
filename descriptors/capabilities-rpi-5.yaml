@@ -1,2 +1,4 @@
 board: rpi-5
-capabilities: [watchdog, display]
+hardware_matrix_version: "1.0.0"
+hardware_board_revision: rpi5-cm5-bom-rev-c
+capabilities: [watchdog, display, led, gpio]

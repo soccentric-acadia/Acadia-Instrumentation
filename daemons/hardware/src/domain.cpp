@@ -69,6 +69,17 @@ const platform::DeviceSpec* DeviceManager::find(const std::string& name) const
     return nullptr;
 }
 
+Result<const platform::DeviceSpec*> DeviceManager::authorize(const std::string& device) const
+{
+    const platform::DeviceSpec* dev = find(device);
+    if (!dev) return Result<const platform::DeviceSpec*>::fail(Errc::NotFound, "unknown device: " + device, "hardware");
+    if (capabilities_.board.empty() || capabilities_.hardware_matrix_version.empty() || capabilities_.hardware_board_revision.empty() || capabilities_.board != desc_.board)
+        return Result<const platform::DeviceSpec*>::fail(Errc::NotSupported, "device descriptor is not bound to a validated board/revision capability manifest", device);
+    if (dev->reserved) return Result<const platform::DeviceSpec*>::fail(Errc::NotSupported, "device is reserved and cannot be operated: " + device, device);
+    if (dev->capability.empty() || !capabilities_.has(dev->capability)) return Result<const platform::DeviceSpec*>::fail(Errc::NotSupported, "device capability is not enabled for this board revision: " + device, device);
+    return Result<const platform::DeviceSpec*>::good(dev);
+}
+
 /// @brief Stamp and return a check result.
 /// @param dev Device name.
 /// @param chk Check name.
@@ -95,8 +106,9 @@ CheckResult DeviceManager::make_result(const std::string& dev, const std::string
 /// @return ok(), or an error for unknown device/op or platform refusal.
 Error DeviceManager::control(const std::string& device, const std::string& control_op, const std::map<std::string, std::string>& args)
 {
-    const platform::DeviceSpec* dev = find(device);
-    if (!dev) return Error::make(Errc::NotFound, "unknown device: " + device, "hardware");
+    auto authorized = authorize(device);
+    if (!authorized.ok()) return authorized.error;
+    const platform::DeviceSpec* dev = *authorized;
     // Only controls declared in the descriptor are allowed (board knowledge is
     // data, not code).
     bool declared = false;
@@ -196,8 +208,9 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
 Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(const std::string& device, size_t max_frames)
 {
     using Ret = Result<std::vector<platform::IPlatform::CanFrame>>;
-    const platform::DeviceSpec* dev = find(device);
-    if (!dev) return Ret::fail(Errc::NotFound, "unknown device: " + device, "hardware");
+    auto authorized = authorize(device);
+    if (!authorized.ok()) return Ret::fail(authorized.error);
+    const platform::DeviceSpec* dev = *authorized;
     if (dev->kind != "can") return Ret::fail(Errc::NotSupported, "not a can device", device);
     bool declared = false;
     for (const auto& c : dev->controls)
@@ -212,8 +225,9 @@ Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(co
 /// @return The line state, or an error.
 Result<bool> DeviceManager::gpio_read(const std::string& device)
 {
-    const platform::DeviceSpec* dev = find(device);
-    if (!dev) return Result<bool>::fail(Errc::NotFound, "unknown device: " + device, "hardware");
+    auto authorized = authorize(device);
+    if (!authorized.ok()) return Result<bool>::fail(authorized.error);
+    const platform::DeviceSpec* dev = *authorized;
     if (dev->kind != "gpio") return Result<bool>::fail(Errc::NotSupported, "not a gpio device", device);
     int line = std::stoi(dev->params.count("line") ? dev->params.at("line") : "-1");
     return plat_.gpio_get(line);
@@ -306,6 +320,12 @@ std::vector<CheckResult> DeviceManager::check_device(const std::string& name)
     std::vector<CheckResult> out;
     const platform::DeviceSpec* dev = find(name);
     if (!dev) return out;
+    auto authorized = authorize(name);
+    if (!authorized.ok())
+    {
+        out.push_back(make_result(dev->name, "authorization", CheckState::Unknown, "not supported: " + authorized.error.message, ts_.mono_ns()));
+        return out;
+    }
     for (const auto& chk : dev->checks) out.push_back(run_check(*dev, chk));
     last_check_mono_[name] = ts_.mono_ns();
     return out;
