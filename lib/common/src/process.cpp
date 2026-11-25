@@ -1,7 +1,7 @@
 /**
  * @file lib/common/src/process.cpp
  * @brief argv-only process execution (T-P31, INS-007/008).
- * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ * @copyright (C) 2026 SoCcentric. Licensed under the MIT License.
  */
 #include "instr/common/process.h"
 

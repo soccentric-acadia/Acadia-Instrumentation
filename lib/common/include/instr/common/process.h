@@ -7,7 +7,7 @@
  * so a crafted value could inject commands. `run_argv` spawns the program
  * directly (posix_spawnp); arguments are never interpreted.
  *
- * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ * @copyright (C) 2026 SoCcentric. Licensed under the MIT License.
  */
 #pragma once
 
